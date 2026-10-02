@@ -99,11 +99,11 @@ begin
       and t.relname = 'subjects'
       and c.contype = 'u'
       and array(
-        select a.attname
+        select a.attname::text
         from unnest(c.conkey) with ordinality as k(attnum, ord)
         join pg_attribute a on a.attrelid = t.oid and a.attnum = k.attnum
         order by k.ord
-      ) = array['subject_code']
+      ) = array['subject_code']::text[]
   ) loop
     execute format('alter table public.subjects drop constraint %I', old_cname);
   end loop;
@@ -141,11 +141,11 @@ begin
       and t.relname = 'lectures'
       and c.contype = 'u'
       and array(
-        select a.attname
+        select a.attname::text
         from unnest(c.conkey) with ordinality as k(attnum, ord)
         join pg_attribute a on a.attrelid = t.oid and a.attnum = k.attnum
         order by k.ord
-      ) = array['subject_id', 'lecture_date', 'lecture_number']
+      ) = array['subject_id', 'lecture_date', 'lecture_number']::text[]
   ) loop
     execute format('alter table public.lectures drop constraint %I', old_cname);
   end loop;
