@@ -14,3 +14,14 @@
 .settings-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.settings-section{padding:20px}.settings-section h2{font:750 1rem 'Manrope';margin:0 0 16px}.profile-block{display:flex;align-items:center;gap:16px;margin-bottom:20px}.profile-avatar{width:66px;height:66px;border-radius:18px;background:#e7f1ff;color:var(--blue);display:grid;place-items:center;font:800 1.4rem 'Manrope'}.notice{border-radius:12px;padding:14px 16px;background:#eaf3ff;color:#205fa5;font-size:.85rem}.toast-stack{position:fixed;right:22px;bottom:22px;z-index:200;display:grid;gap:10px}.toast{min-width:290px;background:#122438;color:#fff;padding:14px 16px;border-radius:12px;box-shadow:0 16px 40px rgba(7,20,34,.28);display:flex;align-items:center;gap:10px;animation:toastIn .25s ease}.toast.error{background:#b72c36}.toast.success{background:#087f45}.loader{position:fixed;top:76px;left:264px;right:0;width:auto;height:2px;margin:0;border:0;border-radius:0;background:#dbeafe;overflow:hidden;z-index:19}.loader:after{content:"";display:block;width:36%;height:100%;background:linear-gradient(90deg,transparent,var(--blue),transparent);animation:loadingLine 1s ease-in-out infinite}.skeleton{background:linear-gradient(90deg,#eef2f7,#f7f9fb,#eef2f7);background-size:200% 100%;animation:shine 1.3s infinite;border-radius:8px;height:20px}.footer-note{font-size:.76rem;color:#8492a5;margin-top:16px;text-align:center}
 @keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes loadingLine{from{transform:translateX(-120%)}to{transform:translateX(360%)}}@keyframes shine{to{background-position:-200% 0}}
 .modal-backdrop .modal{display:block;position:relative}
+
+.card.toolbar{display:flex;flex-direction:row!important;flex-wrap:wrap;align-items:flex-end;justify-content:flex-start}
+.toolbar{padding:12px;gap:8px;margin-bottom:12px}
+.toolbar .field{flex:0 1 168px;min-width:132px}
+.toolbar .field.grow{flex:1 1 280px;min-width:220px}
+.toolbar>.btn{flex:0 0 auto}
+.toolbar .count-strip{margin-left:0}
+.page{padding-top:20px;padding-bottom:30px}
+.page-heading{margin-bottom:14px}
+.card-pad{padding:18px}
+.attendance-list .data-table td{padding-top:9px;padding-bottom:9px}
