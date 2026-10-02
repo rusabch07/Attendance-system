@@ -52,6 +52,17 @@ create table public.attendance (
   updated_at timestamptz not null default now(),
   unique(lecture_id, student_id)
 );
+create table public.student_leaves (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  start_date date not null,
+  end_date date not null check (end_date >= start_date),
+  reason text not null,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  created_at timestamptz not null default now(),
+  approved_at timestamptz,
+  approved_by uuid references auth.users(id) on delete set null
+);
 create table public.settings (
   id uuid primary key default gen_random_uuid(),
   class_name text not null default 'My Class',
@@ -83,6 +94,7 @@ alter table public.students enable row level security;
 alter table public.subjects enable row level security;
 alter table public.lectures enable row level security;
 alter table public.attendance enable row level security;
+alter table public.student_leaves enable row level security;
 alter table public.settings enable row level security;
 
 create policy "profiles read own or admin" on public.profiles for select to authenticated
@@ -107,6 +119,10 @@ create policy "authorized read attendance" on public.attendance for select to au
 create policy "authorized insert attendance" on public.attendance for insert to authenticated with check (public.is_attendance_user());
 create policy "authorized update attendance" on public.attendance for update to authenticated using (public.is_attendance_user()) with check (public.is_attendance_user());
 create policy "authorized delete attendance" on public.attendance for delete to authenticated using (public.is_attendance_user());
+create policy "authorized read student leaves" on public.student_leaves for select to authenticated using (public.is_attendance_user());
+create policy "authorized insert student leaves" on public.student_leaves for insert to authenticated with check (public.is_attendance_user());
+create policy "authorized update student leaves" on public.student_leaves for update to authenticated using (public.is_attendance_user()) with check (public.is_attendance_user());
+create policy "authorized delete student leaves" on public.student_leaves for delete to authenticated using (public.is_attendance_user());
 create policy "authorized read settings" on public.settings for select to authenticated using (public.is_attendance_user());
 create policy "authorized insert settings" on public.settings for insert to authenticated with check (public.is_attendance_user());
 create policy "authorized update settings" on public.settings for update to authenticated using (public.is_attendance_user()) with check (public.is_attendance_user());

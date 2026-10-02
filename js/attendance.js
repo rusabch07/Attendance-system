@@ -16,6 +16,7 @@ export async function render(initialData){
  search='';
  const params=new URLSearchParams(location.search);
  editingId=params.get('edit');
+ if(!editingId&&params.get('date'))selectedDate=params.get('date');
  let invalidSlot=false;
 
  if(editingId){
@@ -57,7 +58,7 @@ export async function render(initialData){
 function currentSubject(){return data.subjects.find(item=>item.id===selectedSubject)}
 function currentScheduleSlot(){return data.timetable.find(item=>item.id===selectedScheduleSlotId)}
 function classStudents(){return data.students.filter(student=>!selectedSection||student.section===selectedSection)}
-function seedStatuses(force=false){classStudents().forEach(student=>{if(force||!statuses.has(student.id))statuses.set(student.id,'present')})}
+function seedStatuses(force=false){classStudents().forEach(student=>{if(force||!statuses.has(student.id))statuses.set(student.id,'present')});if(!editingId)classStudents().forEach(student=>{if((data.leaves||[]).some(leave=>leave.student_id===student.id&&leave.status==='approved'&&leave.start_date<=selectedDate&&leave.end_date>=selectedDate))statuses.set(student.id,'leave')})}
 function setNextLecture(){lectureNo=nextLectureNumber(data.lectures,selectedSubject)}
 
 function slotLabel(slot){
@@ -84,7 +85,7 @@ function draw(){
 
 function bind(){
  $('#subject').onchange=event=>{selectedSubject=event.target.value;selectedSection=currentSubject()?.section||'';statuses.clear();setNextLecture();seedStatuses(true);draw()};
- $('#date').onchange=event=>selectedDate=event.target.value;
+ $('#date').onchange=event=>{selectedDate=event.target.value;if(!editingId){statuses.clear();seedStatuses(true);draw()}};
  $('#lectureNo').onchange=event=>lectureNo=Number(event.target.value);
  $('#allPresent').onclick=()=>{classStudents().forEach(student=>statuses.set(student.id,'present'));draw()};
  $('#allAbsent').onclick=()=>{classStudents().forEach(student=>statuses.set(student.id,'absent'));draw()};
