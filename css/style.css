@@ -58,3 +58,57 @@
 .amber-visual{width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#fef3c7;color:#d97706;display:grid;place-items:center;font-size:2rem}
 .info-visual{width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#e0e7ff;color:#4f46e5;display:grid;place-items:center;font-size:2rem}
 
+/* Role-based Two-Option Login Page */
+.role-login-page{min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 0%,#ebf3ff 0%,#f4f7fb 60%);padding:40px 20px 20px}
+.role-login-header{text-align:center;max-width:640px;margin:0 auto 36px}
+.role-login-brand{display:flex;flex-direction:column;align-items:center;gap:12px}
+.role-login-logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(145deg,#2588ff,#075bcf);display:grid;place-items:center;color:#fff;font-size:1.8rem;box-shadow:0 10px 24px rgba(22,119,255,.3)}
+.brand-eyebrow{display:inline-block;font-size:.82rem;font-weight:800;letter-spacing:.08em;color:var(--blue-dark);text-transform:uppercase}
+.role-login-header h1{font:800 2.2rem 'Manrope',sans-serif;color:var(--ink);margin:4px 0 8px}
+.role-login-header p{color:var(--muted);font-size:.95rem;margin:0}
+.role-login-cards{display:grid;grid-template-columns:repeat(2,minmax(320px,460px));gap:28px;justify-content:center;max-width:960px;width:100%;margin:0 auto 40px}
+.role-login-card{background:#fff;border:1px solid #dce5f2;border-radius:20px;padding:32px 30px;box-shadow:0 16px 40px rgba(15,29,45,.07);display:flex;flex-direction:column;transition:transform .2s ease,box-shadow .2s ease}
+.role-login-card:hover{transform:translateY(-2px);box-shadow:0 20px 48px rgba(15,29,45,.1)}
+.role-card-header{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+.role-card-icon{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:1.5rem;flex:0 0 auto}
+.role-card-icon.admin{background:#eef4ff;color:var(--blue)}
+.role-card-icon.cr{background:#e6f7ef;color:#0d8a4a}
+.role-card-titles h2{font:800 1.28rem 'Manrope',sans-serif;margin:2px 0 0;color:var(--ink)}
+.role-tag{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:6px}
+.role-tag.admin{background:#e8f0fe;color:#1967d2}
+.role-tag.cr{background:#def7ec;color:#03543f}
+.role-card-desc{color:var(--muted);font-size:.88rem;line-height:1.45;margin:0 0 20px;min-height:38px}
+.role-login-form{display:flex;flex-direction:column;gap:2px;margin-top:auto}
+.role-login-btn{height:48px;font-size:.95rem;margin-top:20px;width:100%}
+.role-login-btn.cr-btn{background:linear-gradient(135deg,#108e4f,#07733c);box-shadow:0 8px 18px rgba(16,142,79,.25)}
+.role-login-btn.cr-btn:hover{background:linear-gradient(135deg,#139f59,#088143)}
+.field-hint{font-size:.74rem;color:var(--muted);margin-top:3px}
+.demo-hint-box{margin-top:18px;padding:10px 14px;border-radius:10px;background:#f4f8fe;border:1px solid #dbe6f6;font-size:.78rem;color:#4b6382;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.demo-hint-title{font-weight:700;color:var(--blue-dark);display:inline-flex;align-items:center;gap:5px}
+.role-login-footer{margin-top:auto;border-top:1px solid #e2e8f0;background:transparent}
+
+/* Admin Context Filter Bar */
+.admin-context-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;margin-bottom:20px;background:linear-gradient(135deg,#fff,#f7faff);border:1px solid #cddcf0;border-left:5px solid var(--blue);border-radius:var(--radius);box-shadow:var(--shadow)}
+.admin-context-info{display:grid;gap:2px}
+.admin-context-badge{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--blue-dark)}
+.admin-context-sub{margin:0;font-size:.86rem;color:var(--muted)}
+.admin-context-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.admin-context-controls .field{min-width:170px;gap:4px}
+.admin-context-controls .field label{font-size:.75rem}
+.admin-context-controls .select{height:38px;font-size:.86rem;font-weight:600;background-color:#fff;border-color:#c7d7ed}
+
+/* Section Context Badge on CR Dashboard */
+.cr-context-badge{display:inline-flex;align-items:center;gap:8px;background:#eaf3ff;border:1px solid #c7ddff;color:var(--blue-dark);padding:5px 12px;border-radius:8px;font-weight:700;font-size:.82rem;margin-top:4px}
+.topbar-role-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:.78rem;font-weight:800;letter-spacing:.02em}
+.topbar-role-badge.admin{background:#e8f1ff;color:var(--blue-dark);border:1px solid #cde0fc}
+.topbar-role-badge.cr{background:#e6f7ef;color:#07793f;border:1px solid #bcead2}
+
+@media(max-width:768px){
+  .role-login-cards{grid-template-columns:1fr;max-width:480px}
+  .role-login-header h1{font-size:1.8rem}
+  .admin-context-bar{flex-direction:column;align-items:stretch}
+  .admin-context-controls{flex-direction:column;align-items:stretch}
+  .admin-context-controls .field{min-width:100%}
+}
+
+
