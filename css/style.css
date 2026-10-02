@@ -25,3 +25,4 @@
 .page-heading{margin-bottom:14px}
 .card-pad{padding:18px}
 .attendance-list .data-table td{padding-top:9px;padding-bottom:9px}
+.stat-card:after{content:none}
