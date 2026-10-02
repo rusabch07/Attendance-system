@@ -122,7 +122,7 @@ export function getCurrentUserContext(data) {
     }
   }
 
-  const groupLabel = activeGroup ? `${activeGroup.department} - ${activeGroup.batch} - ${activeGroup.semester}` : 'All Departments';
+  const groupLabel = activeGroup ? `${activeGroup.department} — ${activeGroup.batch} — ${activeGroup.semester}` : 'All Departments';
   const sectionCode = activeSection ? (activeSection.section_code || activeSection.section_name) : 'All Sections';
 
   return {
@@ -140,7 +140,7 @@ export function getCurrentUserContext(data) {
     availableGroups: academicGroups,
     topbarRoleBadge: isAllSections ? 'Admin' : `Admin | ${sectionCode}`,
     contextBadge: isAllSections ? `${groupLabel} (All Sections)` : `${sectionCode} | ${activeGroup?.batch || ''} | ${activeGroup?.semester || ''}`,
-    fullContextTitle: `${groupLabel} · ${sectionCode}`
+    fullContextTitle: `${groupLabel} — ${sectionCode}`
   };
 }
 
@@ -228,22 +228,22 @@ export function renderAdminFilterBar(container, data, onFilterChange) {
 
   const html = `
     <div class="admin-context-bar card">
-      <div class="admin-context-info">
+      <div class="admin-context-top">
         <div class="admin-context-badge"><i class="bi bi-shield-shaded"></i> Admin View Control</div>
-        <p class="admin-context-sub">Viewing ${esc(context.fullContextTitle)}</p>
+        <p class="admin-context-sub">Viewing: <span>${esc(context.fullContextTitle)}</span></p>
       </div>
       <div class="admin-context-controls">
-        <div class="field">
+        <div class="field admin-group-field">
           <label for="adminGroupSelect">Academic Group</label>
           <select class="select" id="adminGroupSelect">
             ${context.availableGroups.map(g => `
               <option value="${esc(g.id)}" ${g.id === context.activeGroupId ? 'selected' : ''}>
-                ${esc(g.department)} - ${esc(g.batch)} - ${esc(g.semester)}
+                ${esc(g.department)} — ${esc(g.batch)} — ${esc(g.semester)}
               </option>
             `).join('')}
           </select>
         </div>
-        <div class="field">
+        <div class="field admin-section-field">
           <label for="adminSectionSelect">Section</label>
           <select class="select" id="adminSectionSelect">
             <option value="all" ${context.isAllSections ? 'selected' : ''}>All Sections</option>
