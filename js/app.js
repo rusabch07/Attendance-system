@@ -8,18 +8,20 @@ const nav=[['dashboard','bi-grid-1x2-fill','Dashboard'],['attendance','bi-calend
 const pageTitles={dashboard:'Class Overview',attendance:'Take Attendance',timetable:'Class Timetable',history:'Attendance History',students:'Students',leaves:'Student Leaves',subjects:'Subjects',reports:'Reports',exports:'Export Data',settings:'Settings'};
 
 async function shell(){
- const root=$('#app');root.innerHTML=`<div class="app-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="${pageLink('dashboard')}"><span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span><span>Attendance System</span></a><nav class="nav-list">${nav.map(n=>`<a class="nav-item ${page===n[0]?'active':''}" href="${pageLink(n[0])}"><i class="bi ${n[1]}"></i><span>${n[2]}</span></a>`).join('')}</nav><div class="sidebar-foot"><button class="logout-link" id="logout"><i class="bi bi-box-arrow-left"></i>&nbsp;&nbsp; Logout</button></div></aside><main class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:12px"><button class="mobile-toggle" id="menuToggle" aria-label="Open navigation"><i class="bi bi-list"></i></button><span class="topbar-title">${pageTitles[page]}</span></div><div class="user-wrap"><span id="topbarRoleWrap"></span><span>Welcome, <strong id="userName">CR</strong></span><span class="avatar" id="avatar">CR</span></div></header><section class="page" id="page"><div class="loader"></div></section><footer class="app-footer"><span>&copy; 2026 <strong>Class Attendance System</strong>. All Rights Reserved.</span><span>Designed &amp; Developed by an Electrical Engineering Student</span></footer></main></div>`;
- const clock=document.createElement('time');clock.className='datetime-display';clock.innerHTML='<span class="datetime-date"></span><span class="datetime-time"></span>';$('.user-wrap').prepend(clock);
- const updateClock=()=>{const now=new Date();clock.dateTime=now.toISOString();$('.datetime-date',clock).textContent=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(now);$('.datetime-time',clock).textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}).format(now)};
- updateClock();window.setInterval(updateClock,30_000);
+ const root=$('#app');root.innerHTML=`<div class="app-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="${pageLink('dashboard')}"><span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span><span>Attendance System</span></a><nav class="nav-list">${nav.map(n=>`<a class="nav-item ${page===n[0]?'active':''}" href="${pageLink(n[0])}"><i class="bi ${n[1]}"></i><span>${n[2]}</span></a>`).join('')}</nav><div class="sidebar-foot"><button class="logout-link" id="logout"><i class="bi bi-box-arrow-left"></i>&nbsp;&nbsp; Logout</button></div></aside><main class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:12px"><button class="mobile-toggle" id="menuToggle" aria-label="Open navigation"><i class="bi bi-list"></i></button><span class="topbar-title">${pageTitles[page]}</span></div><div class="user-wrap"><time class="datetime-display" id="topbarClock"><span class="datetime-date"></span><span class="datetime-sep">·</span><span class="datetime-time"></span></time><span id="topbarRoleWrap"></span><span class="topbar-welcome">Welcome, <strong id="userName">CR</strong></span><span class="avatar" id="avatar">CR</span></div></header><section class="page" id="page"><div class="loader"></div></section><footer class="app-footer"><span>&copy; 2026 <strong>Class Attendance System</strong>. All Rights Reserved.</span><span>Designed &amp; Developed by an Electrical Engineering Student</span></footer></main></div>`;
+ const clock=$('#topbarClock');
+ const fmtDate=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+ const fmtTime=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+ const updateClock=()=>{const now=new Date();clock.dateTime=now.toISOString();$('.datetime-date',clock).textContent=fmtDate.format(now);$('.datetime-time',clock).textContent=fmtTime.format(now)};
+ updateClock();window.setInterval(updateClock,1000);
  const sidebar=$('#sidebar');$('#menuToggle').onclick=()=>{sidebar.classList.toggle('open');if(sidebar.classList.contains('open')){const o=document.createElement('div');o.className='sidebar-overlay';o.onclick=()=>{sidebar.classList.remove('open');o.remove()};document.body.append(o)}};
  $('#logout').onclick=async()=>{await DB.signOut();location.href=pageLink('login')};
  const data=await DB.all();
  const context=getCurrentUserContext(data);
  $('#topbarRoleWrap').innerHTML=`<span class="topbar-role-badge ${context.role}">${esc(context.topbarRoleBadge)}</span>`;
- const name=data.profile?.name||(context.isAdmin?'Faculty Admin':'Class Representative');
- $('#userName').textContent=name.split(' ')[0];
- $('#avatar').textContent=name.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+ const name=data.profile?.name||(context.isAdmin?'Faculty Administrator':'Class Representative');
+ $('#userName').textContent=name;
+ $('#avatar').textContent=name.split(' ').map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
  return data;
 }
 async function boot(){

@@ -94,7 +94,7 @@ export async function render(data){
       <div>
         <h1>Dashboard</h1>
         <p>Live attendance health across your ${context.isAllSections ? 'sections' : 'class'}.</p>
-        ${context.isCR ? `<div class="cr-context-badge"><i class="bi bi-geo-alt-fill"></i> ${esc(context.fullContextTitle)}</div>` : ''}
+        ${context.isCR ? `<div class="cr-context-badge">${esc(context.fullContextTitle)}</div>` : ''}
       </div>
       <div>
         ${takeAttendanceAction}
