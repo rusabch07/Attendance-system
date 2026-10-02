@@ -1,6 +1,7 @@
 import {DB} from './supabase.js';
 import {$,$$,esc,toast,modal,statusBadge} from './ui.js';
 import {localDateKey,nextLectureNumber,shortTime} from './schedule.js';
+import {attendanceStats} from './attendance-math.js';
 
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 let data,selectedSubject='',selectedSection='',selectedDate=localDateKey(),lectureNo=1,statuses=new Map(),search='',editingId=null,selectedScheduleSlotId=null;
@@ -69,11 +70,15 @@ function draw(){
  const slot=currentScheduleSlot();
  const scheduled=Boolean(slot);
  const rows=classStudents().filter(student=>`${student.roll_no} ${student.name}`.toLowerCase().includes(search));
- const present=classStudents().filter(student=>statuses.get(student.id)!=='absent').length;
- const absent=classStudents().length-present;
+ const summary=attendanceStats(classStudents().map(student=>({status:statuses.get(student.id)||'present'})),data.settings?.leave_calculation_policy);
+ const present=summary.present,absent=summary.absent,leave=summary.leave,percentage=summary.percentage;
  const backAction=editingId?`<a class="btn btn-outline" href="history.html${DB.qs}"><i class="bi bi-arrow-left"></i> Back to History</a>`:scheduled?`<a class="btn btn-outline" href="dashboard.html${DB.qs}"><i class="bi bi-arrow-left"></i> Today's Schedule</a>`:'';
  const context=scheduled?`<div class="notice schedule-context"><span class="schedule-context-icon"><i class="bi bi-calendar2-check-fill"></i></span><div><strong>Scheduled class</strong><span>${esc(slotLabel(slot))} · ${esc(slot.room||'Room not set')}</span></div><a href="attendance.html${DB.qs}" class="schedule-manual-link">Take manual attendance</a></div>`:'';
  $('#page').innerHTML=`<div class="page-heading"><div><h1>${editingId?'Edit Attendance':'Take Attendance'}</h1><p>${scheduled?'This class was opened from today’s timetable. Subject, section, date, and lecture number are prefilled.':editingId?'Update saved student statuses and lecture details.':'Everyone starts present — tap only the students who are absent.'}</p></div>${backAction}</div>${context}<div class="card toolbar"><div class="field"><label>Date</label><input id="date" class="input" type="date" value="${selectedDate}" ${scheduled?'disabled':''}></div><div class="field grow"><label>Subject</label><select id="subject" class="select" ${scheduled?'disabled':''}>${data.subjects.map(item=>`<option value="${item.id}" ${item.id===selectedSubject?'selected':''}>${esc(item.subject_name)} (${esc(item.subject_code)})</option>`).join('')}</select></div><div class="field"><label>Section</label><input class="input" value="${esc(selectedSection||'—')}" disabled></div>${scheduled?`<div class="field schedule-slot-field"><label>Timetable Slot</label><input class="input" value="${esc(shortTime(slot.start_time))}–${esc(shortTime(slot.end_time))}" disabled></div>`:''}<div class="field"><label>Lecture Number</label><input id="lectureNo" class="input" type="number" min="1" value="${lectureNo}" ${scheduled?'disabled':''}></div></div><div class="card toolbar"><button class="btn btn-success" id="allPresent"><i class="bi bi-check-circle"></i> Mark All Present</button><button class="btn btn-danger" id="allAbsent"><i class="bi bi-x-circle"></i> Mark All Absent</button><button class="btn btn-soft" id="copyPrevious"><i class="bi bi-copy"></i> Copy Previous Lecture</button><div class="field grow"><div class="searchbox"><i class="bi bi-search"></i><input class="input" id="searchStudent" value="${esc(search)}" placeholder="Search student…"></div></div><div class="count-strip"><span class="count-pill green">${present} Present</span><span class="count-pill red">${absent} Absent</span></div></div><div class="card table-card attendance-list"><div class="table-head"><h2>${esc(subject?.subject_name||'Select a subject')}</h2><span class="muted">${classStudents().length} students · Section ${esc(selectedSection||'—')}</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Present</th><th>Roll No</th><th>Student Name</th><th>Status</th></tr></thead><tbody>${rows.map(student=>{const status=statuses.get(student.id)||'present';return`<tr data-student="${student.id}" class="${status==='absent'?'absent-row':''}"><td><input class="attendance-check" type="checkbox" ${status==='present'?'checked':''} aria-label="Mark ${esc(student.name)} present"></td><td><strong>${esc(student.roll_no)}</strong></td><td>${esc(student.name)}</td><td>${statusBadge(status)}</td></tr>`}).join('')||`<tr><td colspan="4"><div class="empty"><i class="bi bi-person-x"></i>No students match this section and search.</div></td></tr>`}</tbody></table></div></div><div class="save-row"><button class="btn btn-primary btn-lg" id="saveAttendance"><i class="bi bi-floppy-fill"></i> ${editingId?'Update Attendance':'Save Attendance'}</button></div>`;
+ const heading=$('.attendance-list thead tr');heading.cells[0].remove();heading.cells[2].textContent='Status (P / A / L)';$('.page-heading p').textContent=editingId?'Update saved student statuses and lecture details.':'Choose P for present, A for absent, or L for on leave.';
+ $$('[data-student]').forEach(row=>{const status=statuses.get(row.dataset.student)||'present',studentName=row.cells[2].textContent;row.cells[0].remove();row.className=`${status}-row`;row.cells[2].innerHTML=`<div class="attendance-controls" role="group" aria-label="${esc(studentName)} attendance status">${[['present','P','Present'],['absent','A','Absent'],['leave','L','On Leave']].map(([value,label,title])=>`<button type="button" class="attendance-choice ${value} ${status===value?'selected':''}" data-status="${value}" aria-label="Mark ${esc(studentName)} ${title}" aria-pressed="${status===value}" title="${title}">${label}</button>`).join('')}</div>`});
+ const leaveButton=document.createElement('button');leaveButton.className='btn btn-leave';leaveButton.id='allLeave';leaveButton.innerHTML='<i class="bi bi-calendar2-minus"></i> Mark All Leave';$('#allAbsent').after(leaveButton);
+ $('.count-strip').innerHTML=`<span class="count-pill">Total Students: ${classStudents().length}</span><span class="count-pill green">${present} Present</span><span class="count-pill red">${absent} Absent</span><span class="count-pill amber">${leave} On Leave</span><span class="count-pill">Attendance: ${percentage}%</span>`;
  bind();
 }
 
@@ -83,10 +88,11 @@ function bind(){
  $('#lectureNo').onchange=event=>lectureNo=Number(event.target.value);
  $('#allPresent').onclick=()=>{classStudents().forEach(student=>statuses.set(student.id,'present'));draw()};
  $('#allAbsent').onclick=()=>{classStudents().forEach(student=>statuses.set(student.id,'absent'));draw()};
+ $('#allLeave').onclick=()=>{classStudents().forEach(student=>statuses.set(student.id,'leave'));draw()};
  $('#copyPrevious').onclick=copyPrevious;
  let timer;
  $('#searchStudent').oninput=event=>{clearTimeout(timer);timer=setTimeout(()=>{search=event.target.value.toLowerCase();draw();$('#searchStudent').focus();$('#searchStudent').setSelectionRange(search.length,search.length)},100)};
- $$('[data-student]').forEach(row=>row.onclick=event=>{if(event.target.closest('button'))return;const id=row.dataset.student;statuses.set(id,statuses.get(id)==='absent'?'present':'absent');draw()});
+ $$('[data-student]').forEach(row=>$$('[data-status]',row).forEach(button=>button.onclick=()=>{statuses.set(row.dataset.student,button.dataset.status);draw()}));
  $('#saveAttendance').onclick=save;
 }
 

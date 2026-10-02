@@ -2,7 +2,7 @@
 create extension if not exists pgcrypto;
 
 create type public.user_role as enum ('admin','cr');
-create type public.attendance_status as enum ('present','absent');
+create type public.attendance_status as enum ('present','absent','leave');
 
 create table public.profiles (
   id uuid primary key default gen_random_uuid(),
@@ -58,6 +58,7 @@ create table public.settings (
   semester_name text not null default 'Current Semester',
   university_name text not null default 'University',
   minimum_attendance numeric(5,2) not null default 75 check (minimum_attendance > 0 and minimum_attendance <= 100),
+  leave_calculation_policy text not null default 'exclude_leave' check (leave_calculation_policy in ('exclude_leave','count_leave_as_absent')),
   updated_at timestamptz not null default now()
 );
 
@@ -110,8 +111,8 @@ create policy "authorized read settings" on public.settings for select to authen
 create policy "authorized insert settings" on public.settings for insert to authenticated with check (public.is_attendance_user());
 create policy "authorized update settings" on public.settings for update to authenticated using (public.is_attendance_user()) with check (public.is_attendance_user());
 
-insert into public.settings(class_name,semester_name,university_name,minimum_attendance)
-values ('Electrical Engineering 2025','Semester 2','Your University',75);
+insert into public.settings(class_name,semester_name,university_name,minimum_attendance,leave_calculation_policy)
+values ('Electrical Engineering 2025','Semester 2','Your University',75,'exclude_leave');
 
 -- After creating an Admin/CR in Authentication → Users, authorize them with:
 -- insert into public.profiles(user_id,name,role)

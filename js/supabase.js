@@ -16,7 +16,7 @@ const timetable=[
  [2,3,'A','08:00:00','09:00:00','EE-104',true],[2,4,'A','09:00:00','10:00:00','EE-105',true],[3,1,'A','08:00:00','09:00:00','EE-101',true],
  [4,0,'A','10:00:00','11:00:00','EE-102',true],[5,2,'A','08:00:00','09:00:00','EE-103',true],[5,3,'A','13:00:00','14:00:00',null,false]
 ].map((x,i)=>({id:`slot-${i+1}`,day_of_week:x[0],subject_id:subjects[x[1]].id,section:x[2],start_time:x[3],end_time:x[4],room:x[5],is_active:x[6],created_at:new Date().toISOString()}));
-const demoState={students,subjects,lectures:[],attendance:[],timetable,settings:{id:'set-1',class_name:'Electrical Engineering 2025',semester_name:'Semester 2',university_name:'National University',minimum_attendance:75},profile:{name:'Class Representative',role:'cr'}};
+const demoState={students,subjects,lectures:[],attendance:[],timetable,settings:{id:'set-1',class_name:'Electrical Engineering 2025',semester_name:'Semester 2',university_name:'National University',minimum_attendance:75,leave_calculation_policy:'exclude_leave'},profile:{name:'Class Representative',role:'cr'}};
 for(let s=0;s<subjects.length;s++)for(let l=1;l<=Math.max(4,9-s);l++){const lecture={id:`lec-${s+1}-${l}`,subject_id:subjects[s].id,lecture_number:l,lecture_date:daysAgo((9-l)*2+s),section:'A',schedule_slot_id:null,created_by:'demo-user',created_at:new Date().toISOString(),updated_at:new Date().toISOString()};demoState.lectures.push(lecture);students.forEach((st,i)=>demoState.attendance.push({id:uid(),lecture_id:lecture.id,student_id:st.id,status:((i+s+l)%7===0||(i===3&&s===3&&l%2===0))?'absent':'present',marked_at:new Date().toISOString(),updated_at:new Date().toISOString()}))}
 
 function check(res){if(res.error)throw res.error;return res.data}

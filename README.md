@@ -12,10 +12,14 @@ A static HTML, CSS, and JavaScript attendance application backed by Supabase and
 
    `supabase/migrations/20261002010000_link_timetable_attendance.sql`
 
+   `supabase/migrations/20261002020000_add_leave_attendance.sql`
+
 4. Confirm that `public.timetable` appears in **Table Editor** and that Row Level Security is enabled.
 5. Keep the existing public Supabase URL and publishable/anon key in `js/config.js`. Never add a service-role key to browser code.
 
 The Phase 1 migration creates the timetable table, indexes, and policies. The Phase 2 migration adds a nullable `schedule_slot_id` foreign key to lectures and a partial unique index for scheduled attendance. Existing historical lectures remain valid with a null slot ID. Neither migration updates or deletes attendance records. Review the SQL before running it; the application does not execute migrations automatically.
+
+The Phase 3 migration adds `leave` as an attendance status and defaults the leave calculation policy to excluding leave from the percentage denominator. It does not modify existing attendance records.
 
 ## Timetable workflow
 

@@ -1,14 +1,15 @@
 import {download,lectureStats} from './ui.js';
+import {attendanceStats} from './attendance-math.js';
 
 const BLUE=[22,119,255],NAVY=[18,32,51],MUTED=[105,120,140];
-const PRESENT=[22,128,75],ABSENT=[205,48,59];
+const PRESENT=[22,128,75],ABSENT=[205,48,59],LEAVE=[230,151,24];
 const LECTURE_COLUMNS=['Sr No','Roll No','Student Name','Status'].map(key=>({key,label:key}));
 const WIDTHS={'Sr No':8,'Roll No':18,'Roll Number':18,'Student Name':29,Student:29,Subject:32,'Subject Code':17,Teacher:27,Status:14,Date:17,Section:12,'Lecture Number':14,Present:12,Absent:12,'Total Lectures':16,'Attendance %':17,Percentage:17};
 
 function lectureRows(data,lecture){
  return data.attendance.filter(a=>a.lecture_id===lecture.id).map((a,i)=>{
   const student=data.students.find(s=>s.id===a.student_id)||{};
-  return{'Sr No':i+1,'Roll No':student.roll_no||'','Student Name':student.name||'',Status:a.status==='present'?'Present':'Absent'};
+  return{'Sr No':i+1,'Roll No':student.roll_no||'','Student Name':student.name||'',Status:a.status==='present'?'Present':a.status==='leave'?'Leave':'Absent'};
  });
 }
 
@@ -25,30 +26,27 @@ function cellValue(value){if(value===null||value===undefined)return'';if(value i
 function globalMetadata(options){const org=options.organization||{};return[['University Name',org.universityName],['Class / Department',org.className],['Semester',org.semesterName],...(options.metadata||[]).map(x=>[x.label,x.value])].filter(([,value])=>value!==null&&value!==undefined&&String(value)!=='')}
 function summaryFor(rows,options={}){
  if(options.summary)return options.summary;
- if(rows.some(row=>Object.hasOwn(row,'Status'))){
-  const present=rows.filter(row=>String(row.Status).toLowerCase()==='present').length,absent=rows.filter(row=>String(row.Status).toLowerCase()==='absent').length,total=present+absent;
-    return{total,present,absent,percentage:total?+(present*100/total).toFixed(1):0,totalLabel:'Total Records'};
- }
- const present=rows.reduce((n,row)=>n+(Number(row.Present)||0),0),absent=rows.reduce((n,row)=>n+(Number(row.Absent)||0),0),totalLectures=rows.reduce((n,row)=>n+(Number(row['Total Lectures'])||0),0),total=present+absent;
- return{total:totalLectures||rows.length,present,absent,percentage:total?+(present*100/total).toFixed(1):0,totalLabel:totalLectures?'Total Lectures':(present||absent?'Total Students':'Total Records')};
+ const counts=rows.some(row=>Object.hasOwn(row,'Status'))?attendanceStats(rows.map(row=>({status:String(row.Status).toLowerCase()==='leave'?'leave':String(row.Status).toLowerCase()==='present'?'present':'absent'})),options.policy):attendanceStats({present:rows.reduce((n,row)=>n+(Number(row.Present)||0),0),absent:rows.reduce((n,row)=>n+(Number(row.Absent)||0),0),leave:rows.reduce((n,row)=>n+(Number(row['On Leave']??row.Leave)||0),0)},options.policy);
+ const totalLectures=rows.reduce((n,row)=>n+(Number(row['Total Lectures'])||0),0);
+ return{...counts,total:totalLectures||counts.total||rows.length,totalLabel:totalLectures?'Total Lectures':(counts.total?'Total Students':'Total Records')};
 }
 function lectureOptions(data,lecture){
  const subject=data.subjects.find(s=>s.id===lecture.subject_id)||{},stats=lectureStats(data,lecture);
- return{title:'CLASS ATTENDANCE REPORT',fileName:`${subject.subject_name||subject.subject_code||'Attendance'}-Lecture-${String(lecture.lecture_number||1).padStart(2,'0')}-${lecture.lecture_date||''}`,organization:{universityName:data.settings?.university_name,className:data.settings?.class_name,semesterName:data.settings?.semester_name},metadata:[{label:'Subject',value:subject.subject_name},{label:'Subject Code',value:subject.subject_code},{label:'Teacher',value:subject.teacher_name},{label:'Section',value:lecture.section||subject.section},{label:'Date',value:formatReportDate(lecture.lecture_date)},{label:'Lecture Number',value:lecture.lecture_number}],summary:{total:stats.total,present:stats.present,absent:stats.absent,percentage:stats.percentage,totalLabel:'Total Students'},columns:LECTURE_COLUMNS};
+ return{title:'CLASS ATTENDANCE REPORT',fileName:`${subject.subject_name||subject.subject_code||'Attendance'}-Lecture-${String(lecture.lecture_number||1).padStart(2,'0')}-${lecture.lecture_date||''}`,organization:{universityName:data.settings?.university_name,className:data.settings?.class_name,semesterName:data.settings?.semester_name},policy:data.settings?.leave_calculation_policy,metadata:[{label:'Subject',value:subject.subject_name},{label:'Subject Code',value:subject.subject_code},{label:'Teacher',value:subject.teacher_name},{label:'Section',value:lecture.section||subject.section},{label:'Date',value:formatReportDate(lecture.lecture_date)},{label:'Lecture Number',value:lecture.lecture_number}],summary:{total:stats.total,present:stats.present,absent:stats.absent,leave:stats.leave,percentage:stats.percentage,totalLabel:'Total Students'},columns:LECTURE_COLUMNS};
 }
 
 export function exportLectureExcel(data,lecture){const options=lectureOptions(data,lecture);return exportTableExcel(options.fileName,lectureRows(data,lecture),options)}
 export function exportLecturePdf(data,lecture){const options=lectureOptions(data,lecture);return exportTablePdf(options.title,lectureRows(data,lecture),options)}
 export function exportLectureCsv(data,lecture){
  const subject=data.subjects.find(s=>s.id===lecture.subject_id)||{};
- const rows=data.attendance.filter(a=>a.lecture_id===lecture.id).map(a=>{const student=data.students.find(s=>s.id===a.student_id)||{};return{Date:lecture.lecture_date||'',Subject:subject.subject_name||'','Subject Code':subject.subject_code||'','Lecture Number':lecture.lecture_number||'',Section:lecture.section||subject.section||'','Roll Number':student.roll_no||'','Student Name':student.name||'',Status:a.status==='present'?'Present':'Absent'}});
- return exportTableCsv(`${subject.subject_name||subject.subject_code||'Attendance'}-Lecture-${String(lecture.lecture_number||1).padStart(2,'0')}-${lecture.lecture_date||''}`,rows,{columns:[{key:'Date',label:'Date'},{key:'Subject',label:'Subject'},{key:'Subject Code',label:'Subject Code'},{key:'Lecture Number',label:'Lecture Number'},{key:'Section',label:'Section'},{key:'Roll Number',label:'Roll Number'},{key:'Student Name',label:'Student Name'},{key:'Status',label:'Status'}]});
+ const rows=data.attendance.filter(a=>a.lecture_id===lecture.id).map(a=>{const student=data.students.find(s=>s.id===a.student_id)||{};return{Date:lecture.lecture_date||'',Subject:subject.subject_name||'','Subject Code':subject.subject_code||'','Lecture Number':lecture.lecture_number||'',Section:lecture.section||subject.section||'','Roll Number':student.roll_no||'','Student Name':student.name||'',Status:a.status==='present'?'Present':a.status==='leave'?'Leave':'Absent'}});
+ return exportTableCsv(`${subject.subject_name||subject.subject_code||'Attendance'}-Lecture-${String(lecture.lecture_number||1).padStart(2,'0')}-${lecture.lecture_date||''}`,rows,{policy:data.settings?.leave_calculation_policy,summary:{...lectureStats(data,lecture),totalLabel:'Total Students'},columns:[{key:'Date',label:'Date'},{key:'Subject',label:'Subject'},{key:'Subject Code',label:'Subject Code'},{key:'Lecture Number',label:'Lecture Number'},{key:'Section',label:'Section'},{key:'Roll Number',label:'Roll Number'},{key:'Student Name',label:'Student Name'},{key:'Status',label:'Status'}]});
 }
 
 export function exportTableExcel(name,rows,options={}){
  const columns=columnsFor(rows,options),summary=summaryFor(rows,options),wb=XLSX.utils.book_new();
  const info=[['CLASS ATTENDANCE REPORT'],[],['Report',options.title||name],...globalMetadata(options),[]];
- if(options.showSummary!==false)info.push(['SUMMARY'],[summary.totalLabel||'Total Records',summary.total||0],['Present',summary.present||0],['Absent',summary.absent||0],['Attendance %',summary.percentage||0]);
+ if(options.showSummary!==false)info.push(['SUMMARY'],[summary.totalLabel||'Total Records',summary.total||0],['Present',summary.present||0],['Absent',summary.absent||0],['On Leave',summary.leave||0],['Attendance %',summary.percentage||0]);
  else if(options.minimumAttendance!==undefined)info.push(['REPORT REQUIREMENTS']);
  if(options.minimumAttendance!==undefined)info.push(['Minimum Attendance Requirement',`${options.minimumAttendance}%`]);
  const summarySheet=XLSX.utils.aoa_to_sheet(info);summarySheet['!cols']=[{wch:34},{wch:28}];summarySheet['!merges']=[{s:{r:0,c:0},e:{r:0,c:1}}];
@@ -62,7 +60,9 @@ export function exportTableExcel(name,rows,options={}){
 
 export function exportTableCsv(name,rows,options={}){
  const columns=columnsFor(rows,options);if(!columns.length)return false;
- const content=[columns.map(c=>c.label),...rows.map(row=>columns.map(c=>row[c.key]))].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+ const csvRows=[columns.map(c=>c.label),...rows.map(row=>columns.map(c=>row[c.key]))];
+ if(options.showSummary!==false){const summary=summaryFor(rows,options);csvRows.push([],['SUMMARY'],[summary.totalLabel||'Total Records',summary.total||0],['Present',summary.present||0],['Absent',summary.absent||0],['On Leave',summary.leave||0],['Attendance %',summary.percentage||0])}
+ const content=csvRows.map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
  download(outputName(options.fileName||name,'csv'),`\uFEFF${content}`,'text/csv;charset=utf-8');return true;
 }
 
@@ -81,7 +81,7 @@ function drawMetadata(doc,metadata,y,width){
  return y+2;
 }
 function drawSummary(doc,summary,y,width){
- if(!summary)return y;const values=[[summary.totalLabel||'Total Students',summary.total||0,[238,243,249],NAVY],['Present',summary.present||0,[226,247,235],PRESENT],['Absent',summary.absent||0,[255,234,236],ABSENT],['Attendance %',`${summary.percentage||0}%`,[231,242,255],BLUE]],gap=4,boxWidth=(width-28-gap*3)/4;
+ if(!summary)return y;const values=[[summary.totalLabel||'Total Students',summary.total||0,[238,243,249],NAVY],['Present',summary.present||0,[226,247,235],PRESENT],['Absent',summary.absent||0,[255,234,236],ABSENT],['On Leave',summary.leave||0,[255,241,209],LEAVE],['Attendance %',`${summary.percentage||0}%`,[231,242,255],BLUE]],gap=3,boxWidth=(width-28-gap*4)/5;
  values.forEach((item,i)=>{const x=14+i*(boxWidth+gap);doc.setFillColor(...item[2]);doc.setDrawColor(224,231,240);doc.roundedRect(x,y,boxWidth,16,1.5,1.5,'FD');doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUTED);doc.text(item[0],x+3,y+5.5);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...item[3]);doc.text(String(item[1]),x+3,y+12.5)});
  return y+23;
 }
@@ -91,7 +91,7 @@ export function exportTablePdf(title,rows,options={}){
  let y=drawHeader(doc,{...options,title:options.title||title},width);y=drawMetadata(doc,globalMetadata(options),y,width);
  if(options.showSummary!==false)y=drawSummary(doc,summaryFor(rows,options),y,width);
  if(options.minimumAttendance!==undefined){doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...NAVY);doc.text(`Minimum Required Attendance: ${options.minimumAttendance}%`,14,y);y+=9}
- if(columns.length){const available=width-28,widthTotal=columns.reduce((sum,column)=>sum+(WIDTHS[column.label]||24),0),scale=available/widthTotal;doc.autoTable({startY:y,margin:{left:14,right:14,bottom:22},head:[columns.map(c=>c.label)],body:rows.map(row=>columns.map(c=>cellValue(row[c.key]))),theme:'striped',styles:{font:'helvetica',fontSize:8.7,cellPadding:2.2,textColor:NAVY,overflow:'linebreak',lineColor:[225,231,239],lineWidth:.15},headStyles:{fillColor:BLUE,textColor:[255,255,255],fontStyle:'bold',fontSize:8.7},alternateRowStyles:{fillColor:[246,248,251]},columnStyles:Object.fromEntries(columns.map((c,i)=>[i,{cellWidth:(WIDTHS[c.label]||24)*scale}])),didParseCell:cell=>{if(cell.section==='body'&&columns[cell.column.index]?.key==='Status'){cell.cell.styles.textColor=String(cell.cell.raw).toLowerCase()==='present'?PRESENT:ABSENT;cell.cell.styles.fontStyle='bold'}}})}
+ if(columns.length){const available=width-28,widthTotal=columns.reduce((sum,column)=>sum+(WIDTHS[column.label]||24),0),scale=available/widthTotal;doc.autoTable({startY:y,margin:{left:14,right:14,bottom:22},head:[columns.map(c=>c.label)],body:rows.map(row=>columns.map(c=>cellValue(row[c.key]))),theme:'striped',styles:{font:'helvetica',fontSize:8.7,cellPadding:2.2,textColor:NAVY,overflow:'linebreak',lineColor:[225,231,239],lineWidth:.15},headStyles:{fillColor:BLUE,textColor:[255,255,255],fontStyle:'bold',fontSize:8.7},alternateRowStyles:{fillColor:[246,248,251]},columnStyles:Object.fromEntries(columns.map((c,i)=>[i,{cellWidth:(WIDTHS[c.label]||24)*scale}])),didParseCell:cell=>{if(cell.section==='body'&&columns[cell.column.index]?.key==='Status'){const status=String(cell.cell.raw).toLowerCase();cell.cell.styles.textColor=status==='present'?PRESENT:status==='leave'?LEAVE:ABSENT;cell.cell.styles.fontStyle='bold'}}})}
  const now=new Date(),date=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(now),time=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}).format(now),pageCount=doc.internal.getNumberOfPages();
  for(let page=1;page<=pageCount;page++){doc.setPage(page);const height=doc.internal.pageSize.getHeight();doc.setDrawColor(225,231,239);doc.setLineWidth(.25);doc.line(14,height-15,width-14,height-15);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...MUTED);doc.text(`Class Attendance System  |  Generated: ${date}, ${time}`,14,height-9);doc.text(`Page ${page} of ${pageCount}`,width-14,height-9,{align:'right'})}
  const result=outputName(options.fileName||title,'pdf');doc.save(result);return result;
