@@ -15,3 +15,8 @@ export function scheduleStatus(slot,now=new Date(),hasAttendance=false){
  if(current<timeToMinutes(slot.end_time))return 'current';
  return hasAttendance?'completed':'awaiting';
 }
+
+export function nextLectureNumber(lectures,subjectId){
+ const numbers=lectures.filter(lecture=>lecture.subject_id===subjectId).map(lecture=>Number(lecture.lecture_number)||0);
+ return Math.max(0,...numbers)+1;
+}

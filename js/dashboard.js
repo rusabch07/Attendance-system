@@ -26,25 +26,27 @@ function renderTodaySchedule(data){
  dateNode.textContent=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'2-digit',month:'short',year:'numeric'}).format(now);
  rowsNode.innerHTML=slots.map(slot=>{
   const subject=data.subjects.find(item=>item.id===slot.subject_id);
-  const lecture=data.lectures.find(item=>item.subject_id===slot.subject_id&&item.lecture_date===dateKey&&item.section===slot.section);
-  const status=scheduleStatus(slot,now,Boolean(lecture));
-  return `<tr><td class="schedule-time">${shortTime(slot.start_time)}–${shortTime(slot.end_time)}</td><td><strong>${esc(subject?.subject_name||'Unknown subject')}</strong><small>${esc(slot.section)}</small></td><td>${esc(slot.room||'—')}</td><td>${scheduleBadge(status)}</td><td>${scheduleAction(slot,lecture,status)}</td></tr>`;
+  const lecture=data.lectures.find(item=>item.schedule_slot_id===slot.id&&item.lecture_date===dateKey);
+  const status=lecture?'taken':scheduleStatus(slot,now,false);
+  return `<tr><td class="schedule-time">${shortTime(slot.start_time)}–${shortTime(slot.end_time)}</td><td><strong>${esc(subject?.subject_name||'Unknown subject')}</strong><small>${esc(slot.section)}</small></td><td>${esc(slot.room||'—')}</td><td>${scheduleBadge(status)}</td><td>${scheduleAction(slot,lecture,status,dateKey)}</td></tr>`;
  }).join('')||`<tr><td colspan="5"><div class="empty schedule-empty"><i class="bi bi-calendar2"></i><strong>No classes scheduled today</strong><span>Use the timetable page to add a weekly class slot.</span></div></td></tr>`;
 }
 
 function scheduleBadge(status){
- const labels={upcoming:'Upcoming',current:'Current',completed:'Completed',awaiting:'Awaiting Attendance'};
- const icons={upcoming:'bi-clock-fill',current:'bi-record-circle-fill',completed:'bi-check-circle-fill',awaiting:'bi-exclamation-circle-fill'};
+ const labels={upcoming:'Upcoming',current:'Current',completed:'Completed',awaiting:'Awaiting Attendance',taken:'Attendance Taken'};
+ const icons={upcoming:'bi-clock-fill',current:'bi-record-circle-fill',completed:'bi-check-circle-fill',awaiting:'bi-exclamation-circle-fill',taken:'bi-check-circle-fill'};
  return `<span class="schedule-status ${status}"><i class="bi ${icons[status]}"></i>${labels[status]}</span>`;
 }
 
-function scheduleAction(slot,lecture,status){
+function scheduleAction(slot,lecture,status,dateKey){
  if(lecture)return `<a class="btn btn-outline btn-sm schedule-action" href="history.html${DB.qs}#${encodeURIComponent(lecture.id)}">View</a>`;
  if(status==='upcoming')return '<span class="muted">—</span>';
  const params=new URLSearchParams();
  if(DB.demo)params.set('demo','1');
  params.set('subject',slot.subject_id);
  params.set('section',slot.section);
+ params.set('date',dateKey);
+ params.set('slot',slot.id);
  return `<a class="btn btn-primary btn-sm schedule-action" href="attendance.html?${params.toString()}">Take Attendance</a>`;
 }
 
