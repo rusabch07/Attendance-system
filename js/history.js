@@ -120,7 +120,7 @@ function draw(){
                   <td class="text-success">${st.present}</td>
                   <td class="text-danger">${st.absent}</td>
                   <td class="text-warning">${st.leave}</td>
-                  <td><strong class="${st.percentage<75?'text-danger':'text-success'}">${st.percentage}%</strong></td>
+                  <td><strong class="${st.percentage<Number(data.settings?.minimum_attendance??75)?'text-danger':'text-success'}">${st.percentage}%</strong></td>
                   <td>
                     <div class="actions">
                       <button class="btn-icon" data-view="${l.id}" title="View details"><i class="bi bi-eye"></i></button>
@@ -142,6 +142,9 @@ function draw(){
     renderAdminFilterBar($('#adminFilterMount'), data, async ()=>{
       data = await DB.all();
       context = getCurrentUserContext(data);
+      filters.section='';
+      if(!filterByActiveContext(data.students,context,data).some(s=>s.id===filters.student))filters.student='';
+      if(!data.subjects.some(s=>s.id===filters.subject&&s.academic_group_id===context.activeGroupId))filters.subject='';
       draw();
     });
   }
@@ -176,7 +179,7 @@ function bind(){
 }
 
 function viewLecture(id){
-  const l=data.lectures.find(x=>x.id===id);
+  const l=scopedLectures().find(x=>x.id===id);
   if(!l)return;
   const sub=data.subjects.find(x=>x.id===l.subject_id)||{};
   const st=lectureStats(data,l);

@@ -1,9 +1,10 @@
 import {DB} from './supabase.js';
 import {$,$$,esc,toast,modal,statusBadge} from './ui.js';
-import {localDateKey,nextLectureNumber,shortTime} from './schedule.js';
-import {attendanceStats} from './attendance-math.js';
+import {localDateKey,nextLectureNumber,shortTime,isSlotScheduledForDate,isValidDateKey} from './schedule.js';
+import {attendanceStats,applyApprovedLeaves,attendanceRoster} from './attendance-math.js';
 import {
   getCurrentUserContext,
+  filterByActiveContext,
   setStoredAdminSection,
   renderAdminFilterBar
 } from './access-context.js';
@@ -23,11 +24,22 @@ export async function render(initialData){
 
  const params=new URLSearchParams(location.search);
  editingId=params.get('edit');
+ const target = editingId ? data.lectures.find(item=>item.id===editingId) : data.timetable.find(item=>item.id===params.get('slot'));
+ if(context.isAdmin&&target?.section_id){
+  setStoredAdminSection(target.section_id);
+  context=getCurrentUserContext(data);
+  data.settings=(data.settings_rows||[]).find(s=>s.section_id===context.activeSectionId)||{};
+ }
+ data={...data,students:filterByActiveContext(data.students,context,data),lectures:filterByActiveContext(data.lectures,context,data),timetable:filterByActiveContext(data.timetable,context,data),subjects:data.subjects.filter(s=>s.academic_group_id===context.activeGroupId)};
+ if((editingId&&!data.lectures.some(l=>l.id===editingId))||(params.get('slot')&&!data.timetable.some(s=>s.id===params.get('slot')))||(!context.isAdmin&&!context.activeSectionId)){
+  $('#page').innerHTML='<div class="card card-pad"><h2>Attendance unavailable</h2><p>The requested record or section is unavailable for this account.</p></div>';
+  return;
+ }
  if(!editingId&&params.get('date'))selectedDate=params.get('date');
  let invalidSlot=false;
 
  // If Admin is in All Sections mode and hasn't selected a specific slot or edit or section parameter:
- if(context.isAdmin && context.isAllSections && !params.get('slot') && !editingId && !params.get('section')){
+ if(context.isAdmin && context.isAllSections){
   drawAllSectionsBlockedView(data, context);
   return;
  }
@@ -63,14 +75,18 @@ export async function render(initialData){
      drawBreakException(slot,directException);
      return;
     }
-    if(directException.exception_type==='rescheduled'){
+    if(directException.exception_type==='rescheduled'&&directException.new_date!==selectedDate){
      drawRescheduledAwayException(slot,directException);
      return;
     }
    }
+   if(!isSlotScheduledForDate(slot,slotExceptions,selectedDate)){
+    $('#page').innerHTML='<div class="card card-pad"><h2>Attendance unavailable</h2><p>This timetable slot does not take place on the requested date.</p></div>';
+    return;
+   }
   }else{
    // Specific section mode or CR mode
-   const secCode = params.get('section') || context.activeSectionCode || (currentSubject()?.section || 'A');
+   const secCode = context.activeSectionCode;
    selectedSection = secCode.startsWith('EE-') ? secCode.split('-').pop() : secCode;
    if(data.subjects[0]){
     const requestedSubject=params.get('subject');
@@ -136,7 +152,7 @@ function currentSubject(){return data.subjects.find(item=>item.id===selectedSubj
 function currentScheduleSlot(){return data.timetable.find(item=>item.id===selectedScheduleSlotId)}
 
 function classStudents(){
- return data.students.filter(student => {
+ return attendanceRoster(data.students,data.attendance,editingId).filter(student => {
   if (context?.isCR && context.activeSectionId && student.section_id) {
    return student.section_id === context.activeSectionId;
   }
@@ -152,10 +168,10 @@ function classStudents(){
 
 function seedStatuses(force=false){
  classStudents().forEach(student=>{if(force||!statuses.has(student.id))statuses.set(student.id,'present')});
- if(!editingId)classStudents().forEach(student=>{if((data.leaves||[]).some(leave=>leave.student_id===student.id&&leave.status==='approved'&&leave.start_date<=selectedDate&&leave.end_date>=selectedDate))statuses.set(student.id,'leave')});
+ if(!editingId)applyApprovedLeaves(statuses,classStudents(),data.leaves,selectedDate);
 }
 
-function setNextLecture(){lectureNo=nextLectureNumber(data.lectures,selectedSubject)}
+function setNextLecture(){lectureNo=nextLectureNumber(data.lectures,selectedSubject,context.activeSectionId)}
 
 function slotLabel(slot){
  if(!slot)return 'Timetable slot';
@@ -274,9 +290,10 @@ function bind(){
 }
 
 function copyPrevious(){
- const previous=data.lectures.filter(item=>item.subject_id===selectedSubject&&item.id!==editingId&&(!selectedSection||item.section===selectedSection)).sort((a,b)=>b.lecture_number-a.lecture_number)[0];
+ const previous=data.lectures.filter(item=>item.subject_id===selectedSubject&&item.id!==editingId&&item.section_id===context.activeSectionId&&item.lecture_date<=selectedDate).sort((a,b)=>b.lecture_number-a.lecture_number)[0];
  if(!previous){toast('No previous lecture found for this subject and section.','error');return}
  data.attendance.filter(item=>item.lecture_id===previous.id).forEach(item=>statuses.set(item.student_id,item.status));
+ seedStatuses();
  draw();
  toast(`Copied statuses from Lecture ${previous.lecture_number}.`);
 }
@@ -293,7 +310,11 @@ function duplicateModal(lecture){
 }
 
 async function save(){
- if(!selectedSubject||!selectedSection||!selectedDate||!lectureNo||!classStudents().length){toast('Select a subject, date, lecture number, and make sure students are loaded.','error');return}
+ try{await saveValidated()}catch(error){toast(error.message||'Unable to save attendance.','error');const button=$('#saveAttendance');if(button){button.disabled=false;button.innerHTML=`<i class="bi bi-floppy-fill"></i> ${editingId?'Update Attendance':'Save Attendance'}`;}}
+}
+
+async function saveValidated(){
+ if(!selectedSubject||!selectedSection||!isValidDateKey(selectedDate)||!Number.isInteger(lectureNo)||lectureNo<1||!classStudents().length){toast('Select a subject, valid date, positive integer lecture number, and make sure students are loaded.','error');return}
  if(selectedScheduleSlotId){
   const slotExceptions=data.schedule_exceptions||[];
   const exception=slotExceptions.find(ex=>ex.schedule_slot_id===selectedScheduleSlotId&&ex.exception_date===selectedDate);
@@ -302,7 +323,7 @@ async function save(){
     toast('Cannot save attendance for a cancelled or break class.','error');
     return;
    }
-   if(exception.exception_type==='rescheduled'){
+   if(exception.exception_type==='rescheduled'&&exception.new_date!==selectedDate){
     toast(`This class was rescheduled to ${exception.new_date}. Take attendance on the rescheduled date.`,'error');
     return;
    }

@@ -243,17 +243,21 @@ async function importStudents(e){
   const file=e.target.files[0];
   if(!file)return;
   try{
+    if(!context.activeSectionId)throw new Error('Select a specific section before importing students.');
     const wb=XLSX.read(await file.arrayBuffer());
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
     let count=0;
     const defaultSecId = context.activeSectionId || data.sections?.[0]?.id;
     const defaultSecCode = context.activeSectionCode?.split('-').pop() || 'A';
     for(const r of rows){
+      const importedSection=String(r.Section||r.section||'').trim();
+      const sectionNames=[context.activeSection?.section_code,context.activeSection?.section_name,context.activeSection?.section_name?.replace(/^Section\s+/i,'')];
+      if(importedSection&&!sectionNames.includes(importedSection))throw new Error(`Imported section ${importedSection} does not match the selected section.`);
       const row={
         roll_no:r['Roll Number']||r.roll_no,
         name:r['Student Name']||r.name,
         registration_no:r['Registration Number']||r.registration_no,
-        section:String(r.Section||r.section||defaultSecCode),
+        section:context.activeSection?.section_name?.replace(/^Section\s+/i,'')||defaultSecCode,
         section_id:defaultSecId,
         semester:String(r.Semester||r.semester||'2'),
         email:r.Email||r.email||'',

@@ -1,6 +1,6 @@
 import {DB} from './supabase.js';
 import {$,esc,toast} from './ui.js';
-import {getCurrentUserContext} from './access-context.js';
+import {getCurrentUserContext,renderAdminFilterBar} from './access-context.js';
 
 let data,context;
 
@@ -15,6 +15,7 @@ function draw(){
   const policy=s.leave_calculation_policy||'exclude_leave';
 
   $('#page').innerHTML=`
+    <div id="adminFilterMount"></div>
     <div class="page-heading">
       <div>
         <h1>Settings</h1>
@@ -69,6 +70,8 @@ function draw(){
     </div>
   `;
 
+  if(context.isAdmin)renderAdminFilterBar($('#adminFilterMount'),data,async()=>{data=await DB.all();context=getCurrentUserContext(data);draw()});
+  if(context.isAllSections){$('#saveClass').disabled=true;$('#classForm').querySelectorAll('input,select').forEach(el=>el.disabled=true);$('.notice').textContent='Select a specific section to edit its class settings and attendance policy.';}
   bind();
 }
 
@@ -95,6 +98,8 @@ function bind(){
       if(row.password)await DB.changePassword(row.password);
       data=await DB.all();
       context=getCurrentUserContext(data);
+      $('#userName').textContent=data.profile.name;
+      $('#avatar').textContent=data.profile.name.split(' ').map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
       draw();
       toast('Account updated.');
     }catch(e){toast(e.message,'error')}

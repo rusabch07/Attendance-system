@@ -1,4 +1,4 @@
-import {$,$$,esc,modal} from './ui.js';
+import {$,$$,esc,modal,toast} from './ui.js';
 
 const STORAGE_KEY_GROUP = 'attendance_admin_group_filter';
 const STORAGE_KEY_SECTION = 'attendance_admin_section_filter';
@@ -71,11 +71,8 @@ export function getCurrentUserContext(data) {
     // CR: strictly bound to profile.section_id
     const crSectionId = profile.section_id;
     let crSection = sections.find(s => s.id === crSectionId);
-    if (!crSection && sections.length) {
-      crSection = sections[0];
-    }
-    const crGroupId = crSection?.academic_group_id || academicGroups[0]?.id;
-    const crGroup = academicGroups.find(g => g.id === crGroupId) || academicGroups[0];
+    const crGroupId = crSection?.academic_group_id || null;
+    const crGroup = academicGroups.find(g => g.id === crGroupId);
 
     const sectionCode = crSection?.section_code || crSection?.section_name || 'EE-25-A';
     const batch = crSection?.batch || crGroup?.batch || '2025';
@@ -154,11 +151,12 @@ export function filterByActiveContext(items, context, data) {
   // CR mode: must strictly match CR's section
   if (context.isCR) {
     const secId = context.activeSectionId;
+    if (!secId) return [];
     const secCode = context.activeSection?.section_code;
     const secLetter = context.activeSection?.section_name?.match(/Section\s+([A-Za-z0-9]+)/i)?.[1];
 
     return items.filter(item => {
-      if (item.section_id && secId) return item.section_id === secId;
+      if (item.section_id) return item.section_id === secId;
       if (item.section && secCode && item.section === secCode) return true;
       if (item.section && secLetter && item.section === secLetter) return true;
       return false;
@@ -190,8 +188,8 @@ export function filterByActiveContext(items, context, data) {
 
     return items.filter(item => {
       if (item.section_id) return groupSectionIds.has(item.section_id);
-      if (item.section && (groupSectionCodes.has(item.section) || groupSectionCodes.size === 0)) return true;
-      return true;
+      if (item.section) return groupSectionCodes.has(item.section);
+      return false;
     });
   }
 
@@ -225,6 +223,8 @@ export function getSectionLabel(item, data) {
 export function renderAdminFilterBar(container, data, onFilterChange) {
   const context = getCurrentUserContext(data);
   if (!context.isAdmin) return;
+  const roleWrap=$('#topbarRoleWrap');
+  if(roleWrap)roleWrap.innerHTML=`<span class="topbar-role-badge admin">${esc(context.topbarRoleBadge)}</span>`;
 
   const html = `
     <div class="admin-context-bar card">
@@ -267,20 +267,21 @@ export function renderAdminFilterBar(container, data, onFilterChange) {
 
   const groupSelect = $('#adminGroupSelect');
   const sectionSelect = $('#adminSectionSelect');
+  const refresh=async()=>{try{if(typeof onFilterChange==='function')await onFilterChange()}catch(error){toast(error.message||'Unable to change the selected view.','error')}};
 
   if (groupSelect) {
     groupSelect.onchange = () => {
       setStoredAdminGroup(groupSelect.value);
       // Reset section filter when academic group changes
       setStoredAdminSection('all');
-      if (typeof onFilterChange === 'function') onFilterChange();
+      refresh();
     };
   }
 
   if (sectionSelect) {
     sectionSelect.onchange = () => {
       setStoredAdminSection(sectionSelect.value);
-      if (typeof onFilterChange === 'function') onFilterChange();
+      refresh();
     };
   }
 }

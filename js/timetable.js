@@ -45,7 +45,7 @@ function draw(){
           <td><strong>${DAYS[day]}</strong>${slot.is_active===false?'<span class="inactive-label">Inactive</span>':''}${exceptionBadge}</td>
           <td class="timetable-time"><strong>${shortTime(slot.start_time)}</strong><span class="mobile-time-end">–${shortTime(slot.end_time)}</span></td>
           <td class="timetable-end">${shortTime(slot.end_time)}</td>
-          <td><span class="timetable-subject">${esc(subject?.subject_name||'Unknown subject')}</span><small>${esc(subject?.subject_code||'')}</small></td>
+          <td><span class="timetable-subject">${esc(subject?.subject_name||'Unknown subject')}</span><small>${esc(subject?.subject_code||'')}</small><small class="timetable-mobile-section">${esc(getSectionLabel(slot,data))}</small></td>
           <td class="timetable-section"><span class="status blue">${esc(getSectionLabel(slot, data))}</span></td>
           <td class="timetable-room">${esc(slot.room||'—')}</td>
           <td>

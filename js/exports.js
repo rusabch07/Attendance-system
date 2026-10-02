@@ -110,6 +110,7 @@ function draw(){
     renderAdminFilterBar($('#adminFilterMount'), data, async ()=>{
       data = await DB.all();
       context = getCurrentUserContext(data);
+      lecture='';student='';subject='';section='';
       draw();
     });
   }

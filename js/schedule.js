@@ -1,6 +1,11 @@
 export const localDateKey=(date=new Date())=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 
 export const weekdayNumber=(date=new Date())=>date.getDay()||7;
+export const isValidDateKey=value=>{
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const date=new Date(`${value}T00:00:00`);
+ return !Number.isNaN(date.getTime())&&localDateKey(date)===value;
+};
 
 export const shortTime=value=>String(value||'').slice(0,5);
 
@@ -10,14 +15,15 @@ export function timeToMinutes(value){
 }
 
 export function scheduleStatus(slot,now=new Date(),hasAttendance=false){
+ if(hasAttendance)return 'completed';
  const current=now.getHours()*60+now.getMinutes();
  if(current<timeToMinutes(slot.start_time))return 'upcoming';
  if(current<timeToMinutes(slot.end_time))return 'current';
  return hasAttendance?'completed':'awaiting';
 }
 
-export function nextLectureNumber(lectures,subjectId){
- const numbers=lectures.filter(lecture=>lecture.subject_id===subjectId).map(lecture=>Number(lecture.lecture_number)||0);
+export function nextLectureNumber(lectures,subjectId,sectionId=null){
+ const numbers=lectures.filter(lecture=>lecture.subject_id===subjectId&&(!sectionId||lecture.section_id===sectionId)).map(lecture=>Number(lecture.lecture_number)||0);
  return Math.max(0,...numbers)+1;
 }
 
@@ -33,6 +39,16 @@ export function nextDateForWeekday(targetWeekday,fromDate=new Date()){
 export function getSlotException(exceptions=[],slotId,dateKey){
  return (exceptions||[]).find(ex=>ex.schedule_slot_id===slotId&&ex.exception_date===dateKey)||null;
 }
+
+export function isSlotScheduledForDate(slot,exceptions=[],dateKey){
+ if(!slot||slot.is_active===false||!isValidDateKey(dateKey))return false;
+ const date=new Date(`${dateKey}T00:00:00`);
+ if(Number.isNaN(date.getTime())||localDateKey(date)!==dateKey)return false;
+ if(exceptions.some(e=>e.schedule_slot_id===slot.id&&e.exception_type==='rescheduled'&&e.new_date===dateKey))return true;
+ return weekdayNumber(date)===Number(slot.day_of_week)&&!getSlotException(exceptions,slot.id,dateKey);
+}
+
+export const remainingScheduleItems=items=>items.filter(item=>!item.lecture&&!item.exception&&item.status==='upcoming');
 
 export function getRescheduledSlotsForDate(exceptions=[],timetable=[],dateKey){
  return (exceptions||[])

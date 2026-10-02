@@ -1,0 +1,42 @@
+[
+  {
+    "size": "1920x1080",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1366x768",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1280x720",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1024x768",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "768x1024",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "430x932",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "390x844",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "360x800",
+    "scroll": 345,
+    "width": 360
+  }
+]

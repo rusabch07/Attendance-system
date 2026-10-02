@@ -4,3 +4,23 @@
 @media(max-width:420px){.stats-grid{grid-template-columns:1fr}.toolbar .field{min-width:100%}.page{padding:18px 12px 30px}.topbar{padding:0 12px}.toast-stack{left:12px;right:12px}.toast{min-width:0}.modal-backdrop{padding:10px}}
 @media(max-width:650px){.timetable-table,.timetable-table tbody{display:block;width:100%}.timetable-table thead{display:none}.timetable-table tr:not(.timetable-empty-row){display:grid;grid-template-columns:72px 70px minmax(0,1fr) 64px;align-items:center;border-bottom:1px solid #edf1f6}.timetable-table tr:not(.timetable-empty-row) td{display:block;width:auto!important;border-bottom:0;padding:10px 6px}.timetable-table tr:not(.timetable-empty-row) td:first-child{font-size:.72rem}.timetable-table tr:not(.timetable-empty-row) td:nth-child(3),.timetable-table tr:not(.timetable-empty-row) td:nth-child(5),.timetable-table tr:not(.timetable-empty-row) td:nth-child(6){display:none}.timetable-table .timetable-empty-row{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;border-bottom:1px solid #edf1f6}.timetable-table .timetable-empty-row td{display:block!important;width:auto!important;border-bottom:0;padding:11px 6px}.timetable-table .timetable-empty-row td[colspan="6"]{grid-column:2}.timetable-subject{display:block;overflow-wrap:normal;word-break:normal}.timetable-table .actions{justify-content:flex-end}.timetable-table .btn-icon{width:28px}}
 @media(max-width:650px){.schedule-context{align-items:flex-start;flex-wrap:wrap}.schedule-manual-link{width:100%;margin-left:50px}.duplicate-actions .btn{width:100%}}
+
+/* Keep the expanded P/A/L count strip within the viewport. */
+.count-strip{flex-wrap:wrap;max-width:100%;min-width:0}
+.table-head{flex-wrap:wrap}
+.table-head .select{width:auto;max-width:100%}
+@media(max-width:650px){
+ .topbar{height:auto;min-height:68px;padding-top:8px;padding-bottom:8px;gap:8px}
+ .user-wrap{flex:1;min-width:0;flex-shrink:1;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+ .user-wrap>#topbarRoleWrap,.user-wrap>.topbar-welcome{display:inline}
+ .topbar-welcome{white-space:normal;overflow-wrap:anywhere;text-align:right;flex-basis:100%;font-size:.75rem}
+ .datetime-date,.datetime-sep{display:inline}
+ .datetime-display{flex-wrap:wrap;font-size:.72rem}
+ .attendance-list .data-table th:first-child,.attendance-list .data-table td:first-child{display:table-cell}
+ .attendance-list .data-table{min-width:460px}
+ .schedule-table{min-width:650px;table-layout:auto}
+ .schedule-table th,.schedule-table td{display:table-cell!important;width:auto!important}
+ .timetable-table .timetable-mobile-section{display:block;font-size:.7rem;color:var(--muted);margin-top:3px}
+}
+.timetable-mobile-section{display:none}
+@media(max-width:650px){.timetable-table .timetable-mobile-section{display:block}}

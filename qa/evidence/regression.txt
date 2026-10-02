@@ -1,0 +1,27 @@
+(node:24828) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ percentages: empty, P/A/L, both policies, leave only (59.463ms)
+✔ lecture numbering counts saved attendance in the selected section only (24.8995ms)
+✔ copying prior statuses preserves current approved leave, inclusively (27.0411ms)
+✔ remaining classes excludes past/current/taken and existing exceptions (29.1376ms)
+✔ editing historical attendance cannot invent marks for new roster additions (24.9782ms)
+✔ another academic group resets invalid section context and isolates rows (28.0095ms)
+✔ schedule boundaries, cancellation, break, reschedule and next week (28.4508ms)
+✔ role context rejects unknown CR assignment and ignores forged admin filters (32.3147ms)
+✔ demo CRUD persists through navigation/refresh and rejects duplicates (56.0069ms)
+✔ demo CR restrictions, role mismatch, normalized login and logout (30.5517ms)
+✔ scheduled and manual duplicate prevention and attendance ownership (31.5852ms)
+✔ leave creation/approval/rejection and reference checks (31.8374ms)
+✔ exception upsert/revert, inactive slots, group-specific subject uniqueness (30.324ms)
+✔ section settings persist and never alter the other section (29.0803ms)
+✔ blank identity fields and impossible manual lecture dates are rejected (26.835ms)
+✔ CSV is raw rows with BOM, quoting and explicit summary opt-in (52.3482ms)
+✔ all JavaScript modules parse and local HTML asset links exist (212.0727ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1506.5731

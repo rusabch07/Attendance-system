@@ -1,0 +1,562 @@
+[
+  {
+    "size": "1920x1080",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 1905,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 1905,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 1905,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1920x1080",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 1920,
+    "width": 1920
+  },
+  {
+    "size": "1366x768",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 1366,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 1366,
+    "width": 1366
+  },
+  {
+    "size": "1366x768",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 1351,
+    "width": 1366
+  },
+  {
+    "size": "1280x720",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 1280,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1280x720",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 1265,
+    "width": 1280
+  },
+  {
+    "size": "1024x768",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 1024,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "1024x768",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 1009,
+    "width": 1024
+  },
+  {
+    "size": "768x1024",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 768,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 768,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 768,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "768x1024",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 753,
+    "width": 768
+  },
+  {
+    "size": "430x932",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 430,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "430x932",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 415,
+    "width": 430
+  },
+  {
+    "size": "390x844",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 390,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "390x844",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 375,
+    "width": 390
+  },
+  {
+    "size": "360x800",
+    "page": "dashboard",
+    "heading": "Dashboard",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "attendance",
+    "heading": "Take Attendance",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "timetable",
+    "heading": "Class Timetable",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "history",
+    "heading": "Attendance History",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "students",
+    "heading": "Students",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "leaves",
+    "heading": "Student Leaves",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "subjects",
+    "heading": "Subjects",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "reports",
+    "heading": "Reports",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "exports",
+    "heading": "Export Data",
+    "scroll": 345,
+    "width": 360
+  },
+  {
+    "size": "360x800",
+    "page": "settings",
+    "heading": "Settings",
+    "scroll": 345,
+    "width": 360
+  }
+]

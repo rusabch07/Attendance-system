@@ -18,6 +18,12 @@ A static HTML, CSS, and JavaScript attendance application backed by Supabase and
 
    `supabase/migrations/20261002040000_add_multi_section_structure.sql`
 
+   `supabase/migrations/20261002050000_create_schedule_exceptions.sql`
+
+   `supabase/migrations/20261002060000_add_login_id_lookup.sql`
+
+   `supabase/migrations/20261002070000_qa_integrity_guards.sql`
+
 4. Confirm that `public.timetable` appears in **Table Editor** and that Row Level Security is enabled.
 5. Keep the existing public Supabase URL and publishable/anon key in `js/config.js`. Never add a service-role key to browser code.
 
@@ -41,6 +47,18 @@ The Phase 5 migration creates `public.sections`, adds and backfills `section_id`
 ## Local demo
 
 Serve the project with any static web server and open `dashboard.html?demo=1`. Demo mode includes active and inactive timetable rows and does not write to Supabase.
+
+Demo mutations now persist in browser localStorage (`attendance-demo-state-v2`) across navigation and refresh. Demo authentication and Admin filters use sessionStorage. Demo passwords are placeholders; demo login does not test Supabase credentials or RLS. Logout clears the active demo session and Admin context.
+
+## QA audit
+
+See [the complete audit report](qa/QA-AUDIT.md) for executed tests, unresolved risks, and the isolated Supabase regression checklist. Production Supabase was not modified during QA. The new integrity migration is prepared but not applied; run the read-only diagnostics in `supabase/diagnostics/qa-integrity.sql` before reviewing it in an isolated environment. The migration guards new writes and permits global Admin profiles without rewriting historical records.
+
+Run the dependency-free regression suite with Node.js:
+
+```sh
+node --experimental-vm-modules --test tests/qa.test.cjs
+```
 
 ## Deployment
 

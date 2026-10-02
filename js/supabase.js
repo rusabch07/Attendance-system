@@ -1,5 +1,6 @@
 import {SUPABASE_URL,SUPABASE_ANON_KEY,configured} from './config.js';
-import {clearAdminFilterContext} from './access-context.js';
+import {clearAdminFilterContext,getCurrentUserContext} from './access-context.js';
+import {localDateKey,isSlotScheduledForDate,isValidDateKey} from './schedule.js';
 
 const demo = new URLSearchParams(location.search).get('demo') === '1';
 const qs = demo ? '?demo=1' : '';
@@ -11,7 +12,7 @@ const persistDemoLeaves=()=>localStorage.setItem('attendance-demo-leaves-v1',JSO
 const demoExceptions=()=>{try{return JSON.parse(localStorage.getItem('attendance-demo-exceptions-v1')||'[]')}catch{return[]}};
 const persistDemoExceptions=()=>localStorage.setItem('attendance-demo-exceptions-v1',JSON.stringify(demoState.schedule_exceptions));
 
-const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)};
+const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return localDateKey(d)};
 
 // Demo Academic Groups & Sections
 const academic_groups = [
@@ -196,6 +197,12 @@ for(let s=0;s<subjects.length;s++){
 }
 
 function check(res){if(res.error)throw res.error;return res.data}
+const demoStorageKey='attendance-demo-state-v2';
+if(demo){
+  try{const saved=JSON.parse(localStorage.getItem(demoStorageKey)||'null');if(saved){for(const key of ['students','subjects','lectures','attendance','timetable','leaves','schedule_exceptions','settings_rows'])if(Array.isArray(saved[key]))demoState[key]=saved[key];}}
+  catch{ /* Ignore damaged demo storage; production is never stored here. */ }
+  demoState.settings_rows ||= sections.map(section=>({...demoState.settings,id:`settings-${section.id}`,section_id:section.id}));
+}
 async function table(name){return check(await client.from(name).select('*'))}
 async function optionalTable(name){const result=await client.from(name).select('*');if(result.error?.code==='42P01'||result.error?.code==='PGRST205')return[];return check(result)}
 
@@ -279,6 +286,7 @@ export const DB={
         profile:targetProfile
       };
       sessionStorage.setItem('attendance_demo_auth_v1',JSON.stringify(demoSession));
+      sessionStorage.removeItem('attendance_demo_logged_out');
       demoState.profile=targetProfile;
       return demoSession;
     }
@@ -301,6 +309,11 @@ export const DB={
       throw new Error('This account is not a CR account.');
     }
 
+    if(profile.role==='cr'){
+      const section=check(await client.from('sections').select('id,is_active').eq('id',profile.section_id).maybeSingle());
+      if(!section||section.is_active===false){await client.auth.signOut();throw new Error('Your section is unavailable or inactive. Contact the Administrator.');}
+    }
+
     return authRes;
   },
 
@@ -308,6 +321,7 @@ export const DB={
     clearAdminFilterContext();
     if(demo){
       sessionStorage.removeItem('attendance_demo_auth_v1');
+      sessionStorage.setItem('attendance_demo_logged_out','1');
       return;
     }
     if(client)await client.auth.signOut();
@@ -315,6 +329,7 @@ export const DB={
 
   async session(){
     if(demo){
+      if(sessionStorage.getItem('attendance_demo_logged_out'))return null;
       const a=getStoredDemoAuth();
       return {user:a.user};
     }
@@ -335,7 +350,18 @@ export const DB={
     if(demo){
       const a=getStoredDemoAuth();
       demoState.profile=a.profile;
-      return structuredClone(demoState);
+      const context=getCurrentUserContext(demoState),sectionId=context.activeSectionId;
+      demoState.settings=demoState.settings_rows.find(s=>s.section_id===sectionId)||{};
+      const result=structuredClone(demoState);
+      if(context.isCR){
+       for(const key of ['students','lectures','timetable','leaves','schedule_exceptions','settings_rows'])result[key]=result[key].filter(row=>row.section_id===sectionId);
+       result.sections=result.sections.filter(s=>s.id===sectionId);
+       result.academic_groups=result.academic_groups.filter(g=>g.id===context.activeGroupId);
+       result.subjects=result.subjects.filter(s=>s.academic_group_id===context.activeGroupId);
+       const lectureIds=new Set(result.lectures.map(l=>l.id));
+       result.attendance=result.attendance.filter(a=>lectureIds.has(a.lecture_id));
+      }
+      return result;
     }
     const [students,subjects,lectures,attendance,timetable,leaves,settings,profiles,schedule_exceptions,sectionsRes,academicGroupsRes]=await Promise.all([
       table('students'),
@@ -351,7 +377,10 @@ export const DB={
       optionalTable('academic_groups')
     ]);
     const u=await this.user();
-    const profile=profiles.find(p=>p.user_id===u?.id)||(profiles[0]||{name:u?.email||'CR',role:'cr'});
+    const profile=profiles.find(p=>p.user_id===u?.id);
+    if(!profile||!['admin','cr'].includes(profile.role))throw new Error('Your account has no authorized attendance profile.');
+    if(profile.role==='cr'&&!sectionsRes.some(s=>s.id===profile.section_id&&s.is_active!==false))throw new Error('Your section is unavailable or inactive.');
+    const context=getCurrentUserContext({profile,sections:sectionsRes,academic_groups:academicGroupsRes});
     return {
       students,
       subjects,
@@ -360,7 +389,8 @@ export const DB={
       timetable,
       leaves,
       schedule_exceptions:schedule_exceptions||[],
-      settings:settings[0]||{},
+      settings:settings.find(s=>s.section_id===context.activeSectionId)||{},
+      settings_rows:settings,
       profile,
       sections:sectionsRes||[],
       academic_groups:academicGroupsRes||[]
@@ -398,7 +428,7 @@ export const DB={
 
   async addSubject(row){
     if(demo){
-      if(demoState.subjects.some(x=>x.subject_code===row.subject_code))throw new Error('Subject code already exists.');
+      if(demoState.subjects.some(x=>x.subject_code===row.subject_code&&x.academic_group_id===row.academic_group_id))throw new Error('Subject code already exists in this academic group.');
       const v={...row,id:uid(),created_at:new Date().toISOString()};
       demoState.subjects.push(v);
       return v;
@@ -418,6 +448,10 @@ export const DB={
     if(demo){
       const lectureIds=demoState.lectures.filter(x=>x.subject_id===id).map(x=>x.id);
       demoState.subjects=demoState.subjects.filter(x=>x.id!==id);
+      const slotIds=new Set(demoState.timetable.filter(x=>x.subject_id===id).map(x=>x.id));
+      demoState.timetable=demoState.timetable.filter(x=>x.subject_id!==id);
+      demoState.schedule_exceptions=demoState.schedule_exceptions.filter(x=>!slotIds.has(x.schedule_slot_id));
+      persistDemoExceptions();
       demoState.lectures=demoState.lectures.filter(x=>x.subject_id!==id);
       demoState.attendance=demoState.attendance.filter(x=>!lectureIds.includes(x.lecture_id));
       return;
@@ -493,7 +527,7 @@ export const DB={
 
   async addTimetableSlot(row){
     if(demo){
-      const value={...row,id:uid(),is_active:true,created_at:new Date().toISOString()};
+      const value={...row,id:uid(),created_at:new Date().toISOString()};
       demoState.timetable.push(value);
       return value;
     }
@@ -511,6 +545,9 @@ export const DB={
   async deleteTimetableSlot(id){
     if(demo){
       demoState.timetable=demoState.timetable.filter(x=>x.id!==id);
+      demoState.schedule_exceptions=demoState.schedule_exceptions.filter(x=>x.schedule_slot_id!==id);
+      demoState.lectures.forEach(l=>{if(l.schedule_slot_id===id)l.schedule_slot_id=null});
+      persistDemoExceptions();
       return;
     }
     return check(await client.from('timetable').delete().eq('id',id));
@@ -563,12 +600,18 @@ export const DB={
 
   async saveSettings(row){
     if(demo){
-      Object.assign(demoState.settings,row);
+      const sectionId=getCurrentUserContext(demoState).activeSectionId;
+      if(!sectionId)throw new Error('Select a specific section to save class settings.');
+      const settings=demoState.settings_rows.find(s=>s.section_id===sectionId);
+      Object.assign(settings,row);
       return;
     }
-    const existing=await table('settings');
+    const data=await this.all(),sectionId=getCurrentUserContext(data).activeSectionId;
+    if(!sectionId)throw new Error('Select a specific section to save class settings.');
+    const existing=data.settings_rows.filter(s=>s.section_id===sectionId);
+    if(existing.length>1)throw new Error('Multiple settings records exist for this section. Contact the Administrator.');
     if(existing[0])return check(await client.from('settings').update(row).eq('id',existing[0].id));
-    return check(await client.from('settings').insert(row));
+    return check(await client.from('settings').insert({...row,section_id:sectionId}));
   },
 
   async saveProfile(name){
@@ -588,3 +631,57 @@ export const DB={
     return check(await client.auth.updateUser({password}));
   }
 };
+
+// Persist demo mutations so navigation and refresh exercise the same records.
+// These guards emulate database ownership rules; production security remains RLS.
+for(const name of ['addStudent','updateStudent','deleteStudent','addSubject','updateSubject','deleteSubject','saveLecture','updateLecture','deleteLecture','addTimetableSlot','updateTimetableSlot','deleteTimetableSlot','addScheduleException','deleteScheduleException','addLeave','updateLeaveStatus','saveSettings']){
+ const original=DB[name];
+ DB[name]=async function(...args){
+  const fields={addStudent:['name','roll_no','registration_no','semester'],updateStudent:['name','roll_no','registration_no','semester'],addSubject:['subject_name','subject_code','teacher_name','semester'],updateSubject:['subject_name','subject_code','teacher_name','semester'],addLeave:['reason']};
+  if(fields[name]){
+   const index=name.startsWith('update')?1:0;
+   args[index]={...args[index]};
+   for(const field of fields[name])if(field in args[index]){args[index][field]=String(args[index][field]).trim();if(!args[index][field])throw new Error(`${field.replaceAll('_',' ')} cannot be blank.`);}
+  }
+  if(demo){
+   const context=getCurrentUserContext(demoState);
+   const tables={Student:'students',Subject:'subjects',Lecture:'lectures',TimetableSlot:'timetable',ScheduleException:'schedule_exceptions',Leave:'leaves'};
+   const kind=Object.keys(tables).find(kind=>name.includes(kind));
+   const updating=/^(update|delete)/.test(name);
+   const existing=updating&&kind?demoState[tables[kind]].find(row=>row.id===args[0]):null;
+   if(updating&&kind&&!existing)throw new Error('Record not found.');
+   const row={...(existing||{}),...(typeof args[updating?1:0]==='object'?args[updating?1:0]:{})};
+   if(kind==='Subject'&&!context.isAdmin)throw new Error('Shared subjects are read-only for CR accounts.');
+   if(context.isCR&&kind&&kind!=='Subject'&&(row.section_id!==context.activeSectionId||!context.activeSectionId))throw new Error('Another section cannot be modified.');
+   if(['Student','Subject'].includes(kind)&&!name.startsWith('delete')){
+    const field=kind==='Student'?'roll_no':'subject_code';
+    if(demoState[tables[kind]].some(item=>item.id!==existing?.id&&item[field]===row[field]&&(kind==='Student'||item.academic_group_id===row.academic_group_id)))throw new Error(`${field} already exists.`);
+   }
+   if(['TimetableSlot','Lecture'].includes(kind)&&!name.startsWith('delete')){
+    const section=demoState.sections.find(s=>s.id===row.section_id),subject=demoState.subjects.find(s=>s.id===row.subject_id);
+    if(!section||!subject||section.academic_group_id!==subject.academic_group_id)throw new Error('Invalid section/subject academic group.');
+   }
+   if(kind==='ScheduleException'&&!name.startsWith('delete')){
+    if(!demoState.timetable.some(s=>s.id===row.schedule_slot_id&&s.section_id===row.section_id))throw new Error('Exception section must match its slot.');
+   }
+   if(kind==='Leave'&&!name.startsWith('delete')){
+    if(!demoState.students.some(s=>s.id===row.student_id&&s.section_id===row.section_id))throw new Error('Leave section must match its student.');
+   }
+   if(kind==='Lecture'&&!name.startsWith('delete')){
+    if(!isValidDateKey(row.lecture_date))throw new Error('Invalid lecture date.');
+    if(row.schedule_slot_id){
+     const slot=demoState.timetable.find(s=>s.id===row.schedule_slot_id);
+     if(!slot||slot.section_id!==row.section_id||slot.subject_id!==row.subject_id)throw new Error('Scheduled lecture must match its slot.');
+     if((!existing||existing.lecture_date!==row.lecture_date||existing.schedule_slot_id!==row.schedule_slot_id)&&!isSlotScheduledForDate(slot,demoState.schedule_exceptions,row.lecture_date))throw new Error('This slot does not take place on the requested date.');
+    }
+    if(!Number.isInteger(Number(row.lecture_number))||Number(row.lecture_number)<1)throw new Error('Invalid lecture number.');
+    if(demoState.lectures.some(l=>l.id!==existing?.id&&l.section_id===row.section_id&&l.subject_id===row.subject_id&&l.lecture_date===row.lecture_date&&Number(l.lecture_number)===Number(row.lecture_number)))throw new Error('Duplicate lecture.');
+    const statuses=args[updating?2:1]||[];
+    if(statuses.some(s=>!['present','absent','leave'].includes(s.status)||!demoState.students.some(st=>st.id===s.student_id&&st.section_id===row.section_id)))throw new Error('Invalid attendance student or status.');
+   }
+  }
+  const result=await original.apply(this,args);
+  if(demo)localStorage.setItem(demoStorageKey,JSON.stringify(demoState));
+  return result;
+ };
+}

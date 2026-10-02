@@ -14,7 +14,7 @@ async function shell(){
  const fmtTime=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
  const updateClock=()=>{const now=new Date();clock.dateTime=now.toISOString();$('.datetime-date',clock).textContent=fmtDate.format(now);$('.datetime-time',clock).textContent=fmtTime.format(now)};
  updateClock();window.setInterval(updateClock,1000);
- const sidebar=$('#sidebar');$('#menuToggle').onclick=()=>{sidebar.classList.toggle('open');if(sidebar.classList.contains('open')){const o=document.createElement('div');o.className='sidebar-overlay';o.onclick=()=>{sidebar.classList.remove('open');o.remove()};document.body.append(o)}};
+ const sidebar=$('#sidebar');$('#menuToggle').onclick=()=>{sidebar.classList.toggle('open');document.querySelectorAll('.sidebar-overlay').forEach(o=>o.remove());if(sidebar.classList.contains('open')){const o=document.createElement('div');o.className='sidebar-overlay';o.onclick=()=>{sidebar.classList.remove('open');o.remove()};document.body.append(o)}};
  $('#logout').onclick=async()=>{await DB.signOut();location.href=pageLink('login')};
  const data=await DB.all();
  const context=getCurrentUserContext(data);
@@ -30,4 +30,4 @@ async function boot(){
  const session=await DB.session();if(!session){location.href=pageLink('login');return}
  try{const data=await shell();const modules={dashboard:'./dashboard.js',attendance:'./attendance.js',timetable:'./timetable.js',history:'./history.js',students:'./students.js',leaves:'./leaves.js',subjects:'./subjects.js',reports:'./reports.js',exports:'./exports.js',settings:'./settings.js'};const mod=await import(modules[page]);await mod.render(data)}catch(e){console.error(e);$('#page').innerHTML=`<div class="card card-pad"><h2>We couldn't load this page</h2><p class="muted">${esc(e.message||'Please try again.')}</p><button class="btn btn-primary" onclick="location.reload()">Try again</button></div>`}
 }
-boot();
+boot().catch(e=>{console.error(e);const root=$('#page')||$('#app');if(root)root.innerHTML=`<div class="card card-pad"><h2>We couldn't load this page</h2><p class="muted">${esc(e.message||'Please try signing in again.')}</p><a class="btn btn-primary" href="${pageLink('login')}">Return to Login</a></div>`});

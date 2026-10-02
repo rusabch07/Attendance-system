@@ -61,7 +61,7 @@ export function exportTableExcel(name,rows,options={}){
 export function exportTableCsv(name,rows,options={}){
  const columns=columnsFor(rows,options);if(!columns.length)return false;
  const csvRows=[columns.map(c=>c.label),...rows.map(row=>columns.map(c=>row[c.key]))];
- if(options.showSummary!==false){const summary=summaryFor(rows,options);csvRows.push([],['SUMMARY'],[summary.totalLabel||'Total Records',summary.total||0],['Present',summary.present||0],['Absent',summary.absent||0],['On Leave',summary.leave||0],['Attendance %',summary.percentage||0])}
+ if(options.showSummary===true){const summary=summaryFor(rows,options);csvRows.push([],['SUMMARY'],[summary.totalLabel||'Total Records',summary.total||0],['Present',summary.present||0],['Absent',summary.absent||0],['On Leave',summary.leave||0],['Attendance %',summary.percentage||0])}
  const content=csvRows.map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
  download(outputName(options.fileName||name,'csv'),`\uFEFF${content}`,'text/csv;charset=utf-8');return true;
 }

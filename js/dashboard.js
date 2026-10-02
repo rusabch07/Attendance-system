@@ -1,7 +1,7 @@
 import {DB} from './supabase.js';
 import {$,$$,esc,toast,modal,confirmBox,subjectStats,studentSubjectRows,pageLink} from './ui.js';
 import {attendanceStats} from './attendance-math.js';
-import {localDateKey,shortTime,resolveTodayScheduleItems} from './schedule.js';
+import {localDateKey,shortTime,resolveTodayScheduleItems,remainingScheduleItems} from './schedule.js';
 import {
   getCurrentUserContext,
   filterByActiveContext,
@@ -54,6 +54,7 @@ export async function render(data){
 
   const subjectRows = scopedSubjects.map(subject => ({ subject, ...subjectStats(scopedData, subject.id) }));
   const short = studentSubjectRows(scopedData).filter(item => item.percentage < threshold).sort((a,b) => a.percentage - b.percentage);
+  const belowThresholdStudents=new Set(short.map(item=>item.student.id)).size;
 
   // Stats cards tailored for All Sections vs Specific Section
   let statsCardsHtml = '';
@@ -65,7 +66,7 @@ export async function render(data){
       ${stat('bi-calendar2-day-fill', "Today's Classes", todayScheduleItems.length, '#e89b17', '#fff4d9')}
       ${stat('bi-graph-up-arrow', 'Overall Attendance', `${avg}%`, '#0b9852', '#e3f8ed')}
       ${stat('bi-calendar2-week-fill', 'Total Lectures', totalLectures, '#ef4d58', '#ffe9eb')}
-      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, short.length, '#ef4444', '#ffe8e9')}
+      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
     `;
   } else {
     statsCardsHtml = `
@@ -74,7 +75,7 @@ export async function render(data){
       ${stat('bi-check-circle-fill', 'Present Today', todayPresent, '#0b9852', '#e3f8ed')}
       ${stat('bi-x-circle-fill', 'Absent Today', todayAbsent, '#ef4444', '#ffe8e9')}
       ${stat('bi-graph-up-arrow', 'Average Attendance', `${avg}%`, '#1677ff', '#e6f1ff')}
-      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, short.length, '#ef4444', '#ffe8e9')}
+      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
     `;
   }
 
@@ -300,7 +301,7 @@ function bindTodaySchedule(data,items,dateKey){
   const breakBtn=$('#btnMarkRemainingBreak');
   if(breakBtn){
     breakBtn.onclick=()=>{
-      const remaining=items.filter(item=>!item.lecture&&!item.exception&&['upcoming','current','awaiting'].includes(item.status));
+      const remaining=remainingScheduleItems(items);
       if(!remaining.length){
         toast('No remaining classes today to mark as No Class.','info');
         return;

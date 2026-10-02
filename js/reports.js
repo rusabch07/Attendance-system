@@ -118,6 +118,8 @@ function draw(){
       context = getCurrentUserContext(data);
       const visible = filterByActiveContext(data.students, context, data);
       if(!visible.some(s => s.id === studentId)) studentId = visible[0]?.id || '';
+      section='';
+      if(!data.subjects.some(s=>s.id===subjectId&&s.academic_group_id===context.activeGroupId))subjectId='';
       draw();
     });
   }
@@ -139,10 +141,10 @@ function studentReport(d){
     <article class="card table-card">
       <div class="table-head">
         <div>
-          <h2>${esc(st?.name||'Select a student')}</h2>
+          <h2>${esc(st?.name||'All Students')}</h2>
           <span class="muted">${esc(st?.roll_no||'')} ${st?'· '+esc(getSectionLabel(st, data)):''}</span>
         </div>
-        <button class="btn btn-soft btn-sm" id="exportReport"><i class="bi bi-download"></i> Export</button>
+        <select class="select" id="reportFormat" aria-label="Report export format"><option value="xlsx">Excel</option><option value="csv">CSV</option><option value="pdf">PDF</option></select><button class="btn btn-soft btn-sm" id="exportReport"><i class="bi bi-download"></i> Export</button>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -177,7 +179,7 @@ function subjectReport(d){
           <h2>${esc(sub?.subject_name||'Select a subject')}</h2>
           <span class="muted">${esc(sub?.subject_code||'')} ${sub?'· '+esc(sub.teacher_name):''}</span>
         </div>
-        <button class="btn btn-soft btn-sm" id="exportReport"><i class="bi bi-download"></i> Export</button>
+        <select class="select" id="reportFormat" aria-label="Report export format"><option value="xlsx">Excel</option><option value="csv">CSV</option><option value="pdf">PDF</option></select><button class="btn btn-soft btn-sm" id="exportReport"><i class="bi bi-download"></i> Export</button>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -270,7 +272,7 @@ function cards(total,present,absent,leave,percentage,labels=['Total Lectures','P
   return `<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">${[['bi-calendar2-week-fill',labels[0],total,'#1677ff','#e6f1ff'],['bi-check-circle-fill',labels[1],present,'#16a65a','#e3f8ed'],['bi-x-circle-fill',labels[2],absent,'#ef4444','#ffe8e9'],['bi-calendar2-minus-fill',labels[3],leave,'#e69718','#fff1d1'],['bi-percent',labels[4],`${percentage}%`,'#7857d8','#f0ebff']].map(x=>`<article class="card stat-card" style="--accent:${x[3]};--tint:${x[4]}"><div class="stat-label">${x[1]}</div><div class="stat-value"><span class="stat-icon"><i class="bi ${x[0]}"></i></span>${x[2]}</div></article>`).join('')}</div>`;
 }
 
-function color(n){return n>=90?'text-success':n>=75?'text-blue':'text-danger'}
+function color(n){return n<Number(data.settings?.minimum_attendance??75)?'text-danger':n>=90?'text-success':'text-blue'}
 function empty(n){return`<tr><td colspan="${n}"><div class="empty"><i class="bi bi-bar-chart"></i>No report data for these filters.</div></td></tr>`}
 
 function currentRows(){
@@ -361,7 +363,10 @@ function reportExportOptions(){
 
 function exportMenu(){
   const rows=currentRows(),options=reportExportOptions();
-  exportTableExcel(options.fileName,rows,options);
+  const format=$('#reportFormat').value;
+  if(format==='csv')exportTableCsv(options.fileName,rows,options);
+  else if(format==='pdf')exportTablePdf(options.title,rows,options);
+  else exportTableExcel(options.fileName,rows,options);
 }
 
 function bind(){
