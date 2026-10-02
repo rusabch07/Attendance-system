@@ -1,27 +1,78 @@
--- Phase 5: add section ownership without deleting or rewriting existing business data.
+-- Phase 5: add multi-section and academic group structure without deleting or rewriting existing business data.
 begin;
 
+-- Academic groups group departments, batches, and semesters.
+create table if not exists public.academic_groups (
+  id uuid primary key default gen_random_uuid(),
+  department text not null,
+  batch text not null,
+  semester text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  constraint academic_groups_dept_batch_semester_key unique (department, batch, semester)
+);
+
+-- Sections belong to an academic group. section_code is unique within its academic group,
+-- allowing multiple groups/sessions to have their own "Section A". login_id remains globally unique.
 create table if not exists public.sections (
   id uuid primary key default gen_random_uuid(),
+  academic_group_id uuid not null references public.academic_groups(id) on delete cascade,
   section_name text not null,
-  section_code text not null unique,
+  section_code text not null,
   department text not null,
   batch text not null,
   semester text not null,
   login_id text unique,
-  is_active boolean not null default true
+  is_active boolean not null default true,
+  constraint sections_academic_group_id_section_code_key unique (academic_group_id, section_code)
 );
 
--- Use one deterministic default section for legacy records and old clients that
--- do not yet send section_id. The login identifier is only stored, not enabled.
+-- Use deterministic default records for legacy records and old clients that do not yet send identifiers.
 do $$
 declare
+  default_academic_group_id uuid;
   default_section_id uuid;
   target_table text;
 begin
-  insert into public.sections(id, section_name, section_code, department, batch, semester, login_id, is_active)
-  values ('00000000-0000-0000-0000-000000000001', 'Section A', 'EE-A', 'Electrical Engineering', '2025', 'Semester 2', 'EE-A-01', true)
-  on conflict (section_code) do update
+  -- 1. Seed deterministic default academic group
+  insert into public.academic_groups(id, department, batch, semester, is_active)
+  values ('00000000-0000-0000-0000-000000000001', 'Electrical Engineering', '2025', 'Semester 2', true)
+  on conflict (id) do update
+    set department = excluded.department,
+        batch = excluded.batch,
+        semester = excluded.semester,
+        is_active = excluded.is_active
+  returning id into default_academic_group_id;
+
+  -- Ensure sections table has academic_group_id if table pre-existed
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'sections' and column_name = 'academic_group_id'
+  ) then
+    alter table public.sections add column academic_group_id uuid references public.academic_groups(id) on delete cascade;
+    update public.sections set academic_group_id = default_academic_group_id where academic_group_id is null;
+    alter table public.sections alter column academic_group_id set not null;
+  end if;
+
+  -- Replace global uniqueness on section_code with composite uniqueness on (academic_group_id, section_code)
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'sections_section_code_key' and conrelid = 'public.sections'::regclass
+  ) then
+    alter table public.sections drop constraint sections_section_code_key;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'sections_academic_group_id_section_code_key' and conrelid = 'public.sections'::regclass
+  ) then
+    alter table public.sections add constraint sections_academic_group_id_section_code_key unique (academic_group_id, section_code);
+  end if;
+
+  -- 2. Seed deterministic default section
+  insert into public.sections(id, academic_group_id, section_name, section_code, department, batch, semester, login_id, is_active)
+  values ('00000000-0000-0000-0000-000000000001', default_academic_group_id, 'Section A', 'EE-A', 'Electrical Engineering', '2025', 'Semester 2', 'EE-A-01', true)
+  on conflict (academic_group_id, section_code) do update
     set section_name = excluded.section_name,
         department = excluded.department,
         batch = excluded.batch,
@@ -30,7 +81,15 @@ begin
         is_active = excluded.is_active
   returning id into default_section_id;
 
-  foreach target_table in array array['students','subjects','timetable','lectures','student_leaves','settings','profiles'] loop
+  -- 3. Subjects belong to academic_groups and are shared by all sections in that group.
+  alter table public.subjects add column if not exists academic_group_id uuid references public.academic_groups(id) on delete cascade;
+  update public.subjects set academic_group_id = default_academic_group_id where academic_group_id is null;
+  alter table public.subjects alter column academic_group_id set default default_academic_group_id;
+  alter table public.subjects alter column academic_group_id set not null;
+  create index if not exists subjects_academic_group_id_idx on public.subjects(academic_group_id);
+
+  -- 4. Section-scoped tables: students, timetable, lectures, student_leaves, settings, profiles
+  foreach target_table in array array['students','timetable','lectures','student_leaves','settings','profiles'] loop
     execute format('alter table public.%I add column if not exists section_id uuid references public.sections(id)', target_table);
     execute format('update public.%I set section_id = $1 where section_id is null', target_table) using default_section_id;
     execute format('alter table public.%I alter column section_id set default %L', target_table, default_section_id);
@@ -39,6 +98,7 @@ begin
   end loop;
 end $$;
 
+-- Section & Academic Group context functions
 create or replace function public.current_section_id()
 returns uuid
 language sql stable security definer
@@ -48,6 +108,20 @@ as $$
 $$;
 revoke all on function public.current_section_id() from public;
 grant execute on function public.current_section_id() to authenticated;
+
+create or replace function public.current_academic_group_id()
+returns uuid
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select s.academic_group_id
+  from public.profiles p
+  join public.sections s on s.id = p.section_id
+  where p.user_id = auth.uid()
+  limit 1
+$$;
+revoke all on function public.current_academic_group_id() from public;
+grant execute on function public.current_academic_group_id() to authenticated;
 
 create or replace function public.can_access_section(target_section_id uuid)
 returns boolean
@@ -59,6 +133,17 @@ as $$
 $$;
 revoke all on function public.can_access_section(uuid) from public;
 grant execute on function public.can_access_section(uuid) to authenticated;
+
+create or replace function public.can_access_academic_group(target_academic_group_id uuid)
+returns boolean
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select public.is_attendance_admin()
+    or (public.is_attendance_user() and target_academic_group_id = public.current_academic_group_id())
+$$;
+revoke all on function public.can_access_academic_group(uuid) from public;
+grant execute on function public.can_access_academic_group(uuid) to authenticated;
 
 create or replace function public.can_access_attendance(target_lecture_id uuid, target_student_id uuid)
 returns boolean
@@ -79,6 +164,20 @@ $$;
 revoke all on function public.can_access_attendance(uuid, uuid) from public;
 grant execute on function public.can_access_attendance(uuid, uuid) to authenticated;
 
+-- Academic groups RLS
+alter table public.academic_groups enable row level security;
+drop policy if exists "academic groups read access" on public.academic_groups;
+drop policy if exists "admins manage academic groups" on public.academic_groups;
+create policy "academic groups read access" on public.academic_groups
+  for select to authenticated
+  using (public.can_access_academic_group(id));
+create policy "admins manage academic groups" on public.academic_groups
+  for all to authenticated
+  using (public.is_attendance_admin())
+  with check (public.is_attendance_admin());
+grant select, insert, update, delete on public.academic_groups to authenticated;
+
+-- Sections RLS
 alter table public.sections enable row level security;
 drop policy if exists "section users read own section" on public.sections;
 create policy "section users read own section" on public.sections
@@ -91,7 +190,36 @@ create policy "admins manage sections" on public.sections
   with check (public.is_attendance_admin());
 grant select, insert, update, delete on public.sections to authenticated;
 
--- Replace broad legacy policies; permissive PostgreSQL policies combine with OR.
+-- Profiles: database-level protection against role escalation and section reassignment
+create or replace function public.protect_profile_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.is_attendance_admin() then
+    if new.role is distinct from old.role then
+      raise exception 'Only administrators can change user roles';
+    end if;
+    if new.section_id is distinct from old.section_id then
+      raise exception 'Only administrators can change user section assignment';
+    end if;
+    if new.user_id is distinct from old.user_id then
+      raise exception 'Cannot change user_id';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_profile_fields on public.profiles;
+create trigger trg_protect_profile_fields
+  before update on public.profiles
+  for each row
+  execute function public.protect_profile_fields();
+
+-- Profiles RLS: normal users only update their own profile row without circular queries
 drop policy if exists "profiles read own or admin" on public.profiles;
 drop policy if exists "profiles update own or admin" on public.profiles;
 drop policy if exists "admins read all profiles" on public.profiles;
@@ -99,35 +227,102 @@ drop policy if exists "admins update all profiles" on public.profiles;
 drop policy if exists "admins manage all profiles" on public.profiles;
 drop policy if exists "users read own section profile" on public.profiles;
 drop policy if exists "users update own section profile" on public.profiles;
+drop policy if exists "users read own profile" on public.profiles;
+drop policy if exists "users update own profile" on public.profiles;
+
 create policy "admins read all profiles" on public.profiles
-  for select to authenticated using (public.is_attendance_admin());
+  for select to authenticated
+  using (public.is_attendance_admin());
 create policy "admins update all profiles" on public.profiles
   for update to authenticated
   using (public.is_attendance_admin())
   with check (public.is_attendance_admin());
-create policy "users read own section profile" on public.profiles
+create policy "users read own profile" on public.profiles
   for select to authenticated
-  using (user_id = auth.uid() and public.can_access_section(section_id));
-create policy "users update own section profile" on public.profiles
+  using (user_id = auth.uid());
+create policy "users update own profile" on public.profiles
   for update to authenticated
-  using (user_id = auth.uid() and public.can_access_section(section_id))
-  with check (user_id = auth.uid() and section_id = public.current_section_id());
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
--- Each section-owned table is restricted to its section, with admins bypassing the scope.
+-- Shared Subjects: RLS policies
+-- CR/GR accounts can only READ subjects belonging to their academic group.
+-- Only Admin/Faculty can INSERT, UPDATE, or DELETE shared subjects.
+drop policy if exists "authorized read subjects" on public.subjects;
+drop policy if exists "authorized insert subjects" on public.subjects;
+drop policy if exists "authorized update subjects" on public.subjects;
+drop policy if exists "authorized delete subjects" on public.subjects;
+drop policy if exists "section scoped subjects" on public.subjects;
+drop policy if exists "section users read group subjects" on public.subjects;
+drop policy if exists "admins manage subjects" on public.subjects;
+
+create policy "section users read group subjects" on public.subjects
+  for select to authenticated
+  using (
+    public.is_attendance_admin()
+    or (
+      public.is_attendance_user()
+      and academic_group_id = public.current_academic_group_id()
+    )
+  );
+
+create policy "admins manage subjects" on public.subjects
+  for all to authenticated
+  using (public.is_attendance_admin())
+  with check (public.is_attendance_admin());
+
+grant select, insert, update, delete on public.subjects to authenticated;
+
+-- Data Integrity: Validate that timetable and lecture rows reference a subject
+-- belonging to the same academic group as their section. Cross-session references are blocked.
+create or replace function public.validate_section_subject_academic_group()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_section_group_id uuid;
+  v_subject_group_id uuid;
+begin
+  select s.academic_group_id into v_section_group_id
+  from public.sections s
+  where s.id = new.section_id;
+
+  select sub.academic_group_id into v_subject_group_id
+  from public.subjects sub
+  where sub.id = new.subject_id;
+
+  if v_section_group_id is not null and v_subject_group_id is not null then
+    if v_section_group_id <> v_subject_group_id then
+      raise exception 'Cross-academic-group reference blocked: section % (group %) and subject % (group %) belong to different academic groups',
+        new.section_id, v_section_group_id, new.subject_id, v_subject_group_id;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_validate_timetable_academic_group on public.timetable;
+create trigger trg_validate_timetable_academic_group
+  before insert or update of section_id, subject_id on public.timetable
+  for each row
+  execute function public.validate_section_subject_academic_group();
+
+drop trigger if exists trg_validate_lecture_academic_group on public.lectures;
+create trigger trg_validate_lecture_academic_group
+  before insert or update of section_id, subject_id on public.lectures
+  for each row
+  execute function public.validate_section_subject_academic_group();
+
+-- Section-scoped business tables RLS
 drop policy if exists "authorized read students" on public.students;
 drop policy if exists "authorized insert students" on public.students;
 drop policy if exists "authorized update students" on public.students;
 drop policy if exists "authorized delete students" on public.students;
 drop policy if exists "section scoped students" on public.students;
 create policy "section scoped students" on public.students for all to authenticated
-  using (public.can_access_section(section_id)) with check (public.can_access_section(section_id));
-
-drop policy if exists "authorized read subjects" on public.subjects;
-drop policy if exists "authorized insert subjects" on public.subjects;
-drop policy if exists "authorized update subjects" on public.subjects;
-drop policy if exists "authorized delete subjects" on public.subjects;
-drop policy if exists "section scoped subjects" on public.subjects;
-create policy "section scoped subjects" on public.subjects for all to authenticated
   using (public.can_access_section(section_id)) with check (public.can_access_section(section_id));
 
 drop policy if exists "authorized read timetable" on public.timetable;
@@ -154,7 +349,7 @@ drop policy if exists "section scoped student leaves" on public.student_leaves;
 create policy "section scoped student leaves" on public.student_leaves for all to authenticated
   using (public.can_access_section(section_id)) with check (public.can_access_section(section_id));
 
--- Settings previously allowed select/insert/update but not delete.
+-- Settings
 drop policy if exists "authorized read settings" on public.settings;
 drop policy if exists "authorized insert settings" on public.settings;
 drop policy if exists "authorized update settings" on public.settings;
