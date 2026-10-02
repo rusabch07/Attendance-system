@@ -12,19 +12,18 @@ create table if not exists public.academic_groups (
   constraint academic_groups_dept_batch_semester_key unique (department, batch, semester)
 );
 
--- Sections belong to an academic group. section_code is unique within its academic group,
--- allowing multiple groups/sessions to have their own "Section A". login_id remains globally unique.
+-- Sections belong to an academic group. section_code is globally unique (e.g. EE-25-A, EE-24-A).
+-- login_id is globally unique. section_name (e.g. "Section A") may repeat across academic groups.
 create table if not exists public.sections (
   id uuid primary key default gen_random_uuid(),
   academic_group_id uuid not null references public.academic_groups(id) on delete cascade,
   section_name text not null,
-  section_code text not null,
+  section_code text not null unique,
   department text not null,
   batch text not null,
   semester text not null,
   login_id text unique,
-  is_active boolean not null default true,
-  constraint sections_academic_group_id_section_code_key unique (academic_group_id, section_code)
+  is_active boolean not null default true
 );
 
 -- Use deterministic default records for legacy records and old clients that do not yet send identifiers.
@@ -33,6 +32,7 @@ declare
   default_academic_group_id uuid;
   default_section_id uuid;
   target_table text;
+  old_cname text;
 begin
   -- 1. Seed deterministic default academic group
   insert into public.academic_groups(id, department, batch, semester, is_active)
@@ -54,26 +54,27 @@ begin
     alter table public.sections alter column academic_group_id set not null;
   end if;
 
-  -- Replace global uniqueness on section_code with composite uniqueness on (academic_group_id, section_code)
+  -- Ensure section_code has a global unique constraint (clean up any prior composite uniqueness)
   if exists (
     select 1 from pg_constraint
-    where conname = 'sections_section_code_key' and conrelid = 'public.sections'::regclass
+    where conname = 'sections_academic_group_id_section_code_key' and conrelid = 'public.sections'::regclass
   ) then
-    alter table public.sections drop constraint sections_section_code_key;
+    alter table public.sections drop constraint sections_academic_group_id_section_code_key;
   end if;
 
   if not exists (
     select 1 from pg_constraint
-    where conname = 'sections_academic_group_id_section_code_key' and conrelid = 'public.sections'::regclass
+    where conname = 'sections_section_code_key' and conrelid = 'public.sections'::regclass
   ) then
-    alter table public.sections add constraint sections_academic_group_id_section_code_key unique (academic_group_id, section_code);
+    alter table public.sections add constraint sections_section_code_key unique (section_code);
   end if;
 
-  -- 2. Seed deterministic default section
+  -- 2. Seed deterministic default section (globally unique section_code)
   insert into public.sections(id, academic_group_id, section_name, section_code, department, batch, semester, login_id, is_active)
   values ('00000000-0000-0000-0000-000000000001', default_academic_group_id, 'Section A', 'EE-A', 'Electrical Engineering', '2025', 'Semester 2', 'EE-A-01', true)
-  on conflict (academic_group_id, section_code) do update
-    set section_name = excluded.section_name,
+  on conflict (section_code) do update
+    set academic_group_id = excluded.academic_group_id,
+        section_name = excluded.section_name,
         department = excluded.department,
         batch = excluded.batch,
         semester = excluded.semester,
@@ -84,9 +85,42 @@ begin
   -- 3. Subjects belong to academic_groups and are shared by all sections in that group.
   alter table public.subjects add column if not exists academic_group_id uuid references public.academic_groups(id) on delete cascade;
   update public.subjects set academic_group_id = default_academic_group_id where academic_group_id is null;
-  alter table public.subjects alter column academic_group_id set default default_academic_group_id;
+  execute format('alter table public.subjects alter column academic_group_id set default %L', default_academic_group_id);
   alter table public.subjects alter column academic_group_id set not null;
   create index if not exists subjects_academic_group_id_idx on public.subjects(academic_group_id);
+
+  -- Replace global subject_code uniqueness with unique(academic_group_id, subject_code)
+  for old_cname in (
+    select c.conname
+    from pg_constraint c
+    join pg_class t on c.conrelid = t.oid
+    join pg_namespace n on t.relnamespace = n.oid
+    where n.nspname = 'public'
+      and t.relname = 'subjects'
+      and c.contype = 'u'
+      and array(
+        select a.attname
+        from unnest(c.conkey) with ordinality as k(attnum, ord)
+        join pg_attribute a on a.attrelid = t.oid and a.attnum = k.attnum
+        order by k.ord
+      ) = array['subject_code']
+  ) loop
+    execute format('alter table public.subjects drop constraint %I', old_cname);
+  end loop;
+
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'subjects_subject_code_key' and conrelid = 'public.subjects'::regclass
+  ) then
+    alter table public.subjects drop constraint subjects_subject_code_key;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'subjects_academic_group_id_subject_code_key' and conrelid = 'public.subjects'::regclass
+  ) then
+    alter table public.subjects add constraint subjects_academic_group_id_subject_code_key unique (academic_group_id, subject_code);
+  end if;
 
   -- 4. Section-scoped tables: students, timetable, lectures, student_leaves, settings, profiles
   foreach target_table in array array['students','timetable','lectures','student_leaves','settings','profiles'] loop
@@ -96,6 +130,39 @@ begin
     execute format('alter table public.%I alter column section_id set not null', target_table);
     execute format('create index if not exists %I on public.%I(section_id)', target_table || '_section_id_idx', target_table);
   end loop;
+
+  -- 5. Update lecture uniqueness to include section_id: unique(section_id, subject_id, lecture_date, lecture_number)
+  for old_cname in (
+    select c.conname
+    from pg_constraint c
+    join pg_class t on c.conrelid = t.oid
+    join pg_namespace n on t.relnamespace = n.oid
+    where n.nspname = 'public'
+      and t.relname = 'lectures'
+      and c.contype = 'u'
+      and array(
+        select a.attname
+        from unnest(c.conkey) with ordinality as k(attnum, ord)
+        join pg_attribute a on a.attrelid = t.oid and a.attnum = k.attnum
+        order by k.ord
+      ) = array['subject_id', 'lecture_date', 'lecture_number']
+  ) loop
+    execute format('alter table public.lectures drop constraint %I', old_cname);
+  end loop;
+
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'lectures_subject_id_lecture_date_lecture_number_key' and conrelid = 'public.lectures'::regclass
+  ) then
+    alter table public.lectures drop constraint lectures_subject_id_lecture_date_lecture_number_key;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'lectures_section_subject_date_number_key' and conrelid = 'public.lectures'::regclass
+  ) then
+    alter table public.lectures add constraint lectures_section_subject_date_number_key unique (section_id, subject_id, lecture_date, lecture_number);
+  end if;
 end $$;
 
 -- Section & Academic Group context functions
