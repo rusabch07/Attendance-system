@@ -26,3 +26,8 @@
 .card-pad{padding:18px}
 .attendance-list .data-table td{padding-top:9px;padding-bottom:9px}
 .stat-card:after{content:none}
+.app-footer{margin-top:28px;padding:18px 12px;border-top:1px solid #e3e9f2;text-align:center;color:#8492a5;font-size:.78rem;display:flex;justify-content:center;flex-wrap:wrap;gap:4px 12px}
+.app-footer strong{color:#5f6f82;font-weight:600}
+.login-page{grid-template-rows:minmax(0,1fr) auto}
+.login-footer{grid-column:1/-1;margin-top:0;padding:12px 10px;font-size:.72rem;background:#fff}
+@media(max-width:900px){.login-page>.login-panel{min-height:auto}}
