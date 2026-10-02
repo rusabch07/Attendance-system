@@ -31,3 +31,4 @@
 .login-page{grid-template-rows:minmax(0,1fr) auto}
 .login-footer{grid-column:1/-1;margin-top:0;padding:12px 10px;font-size:.72rem;background:#fff}
 @media(max-width:900px){.login-page>.login-panel{min-height:auto}}
+.modal{height:auto}
