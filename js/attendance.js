@@ -1,6 +1,7 @@
 import {DB} from './supabase.js';import {$,$$,esc,toast,modal,statusBadge} from './ui.js';
-let data,selectedSubject='',selectedDate=DB.today,lectureNo=1,statuses=new Map(),search='',editingId=null;
-export async function render(d){data=d;editingId=new URLSearchParams(location.search).get('edit');if(editingId){const l=data.lectures.find(x=>x.id===editingId);if(l){selectedSubject=l.subject_id;selectedDate=l.lecture_date;lectureNo=l.lecture_number;data.attendance.filter(a=>a.lecture_id===l.id).forEach(a=>statuses.set(a.student_id,a.status))}}else if(data.subjects[0]){selectedSubject=data.subjects[0].id;setNextLecture()}seedStatuses();draw()}
+function localToday(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`}
+let data,selectedSubject='',selectedDate=localToday(),lectureNo=1,statuses=new Map(),search='',editingId=null;
+export async function render(d){data=d;selectedDate=localToday();editingId=new URLSearchParams(location.search).get('edit');if(editingId){const l=data.lectures.find(x=>x.id===editingId);if(l){selectedSubject=l.subject_id;selectedDate=l.lecture_date;lectureNo=l.lecture_number;data.attendance.filter(a=>a.lecture_id===l.id).forEach(a=>statuses.set(a.student_id,a.status))}}else if(data.subjects[0]){selectedSubject=data.subjects[0].id;setNextLecture()}seedStatuses();draw()}
 function currentSubject(){return data.subjects.find(x=>x.id===selectedSubject)}
 function classStudents(){const s=currentSubject();return data.students.filter(x=>!s||x.section===s.section)}
 function seedStatuses(force=false){classStudents().forEach(s=>{if(force||!statuses.has(s.id))statuses.set(s.id,'present')})}

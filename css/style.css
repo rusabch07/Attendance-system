@@ -32,3 +32,8 @@
 .login-footer{grid-column:1/-1;margin-top:0;padding:12px 10px;font-size:.72rem;background:#fff}
 @media(max-width:900px){.login-page>.login-panel{min-height:auto}}
 .modal{height:auto}
+.datetime-display{display:grid;gap:1px;line-height:1.2;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.datetime-date{font-size:.72rem;color:#8492a5}
+.datetime-time{font-size:.8rem;color:#43536b;font-weight:700}
+@media(max-width:650px){.datetime-display{display:flex;align-items:center}.datetime-date{display:none}.datetime-time{font-size:.8rem}}
+@media(max-width:650px){.user-wrap>.avatar{display:grid}}
