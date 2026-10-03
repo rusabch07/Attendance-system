@@ -238,3 +238,68 @@ test('R-02 equal 82% produces one shortage in All Sections and CR keeps own poli
  data.profile={role:'cr',section_id:'sec-1'};data.settings=data.settings_rows[0];await dashboard.render(data);assert.ok(nodes.get('#page').innerHTML.includes('Below 80%'));
  reports.qaMode('subject');assert.ok(reports.reportExportOptions().columns.some(c=>c.key==='Minimum Attendance'));
 });
+
+test('R-03 student with attendance cannot move; every record stays unchanged',async()=>{
+ const r=await runtime(),before=await r.DB.all();
+ await assert.rejects(r.DB.updateStudent('stu-1',{section_id:'sec-2',name:'Must not persist'}),e=>e.code==='23514'&&/attendance history/.test(e.message));
+ assert.deepEqual(await r.DB.all(),before);
+});
+
+test('R-03 student without dependencies may move and normal student edits work',async()=>{
+ const r=await runtime(),student=await r.DB.addStudent({name:'R03 Free',roll_no:'R03-FREE',registration_no:'R03',semester:'2',section_id:'sec-1',section:'A'});
+ await r.DB.updateStudent(student.id,{section_id:'sec-2',section:'B'});
+ assert.equal((await r.DB.all()).students.find(s=>s.id===student.id).section_id,'sec-2');
+ await r.DB.updateStudent('stu-1',{name:'R03 Renamed',roll_no:'R03-RENAMED',email:'qa@example.invalid',phone:'000',section_id:'sec-1'});
+ assert.equal((await r.DB.all()).students.find(s=>s.id==='stu-1').name,'R03 Renamed');
+});
+
+test('R-03 pending, approved and rejected leaves all retain student ownership',async()=>{
+ for(const status of ['pending','approved','rejected']){
+  const r=await runtime(),student=await r.DB.addStudent({name:'R03 Leave',roll_no:'R03-LEAVE',registration_no:'R03',semester:'2',section_id:'sec-1',section:'A'});
+  const leave=await r.DB.addLeave({student_id:student.id,section_id:'sec-1',start_date:'2026-10-05',end_date:'2026-10-06',reason:'R03'});
+  if(status!=='pending')await r.DB.updateLeaveStatus(leave.id,status);
+  const before=await r.DB.all();
+  await assert.rejects(r.DB.updateStudent(student.id,{section_id:'sec-2'}),e=>e.code==='23514'&&/leave records/.test(e.message));
+  assert.deepEqual(await r.DB.all(),before);
+ }
+});
+
+test('R-03 referenced subject cannot move; ordinary subject edits remain valid',async()=>{
+ const r=await runtime(),before=await r.DB.all();
+ await assert.rejects(r.DB.updateSubject('sub-1',{academic_group_id:'ag-other',subject_name:'Must not persist'}),e=>e.code==='23514');
+ assert.deepEqual(await r.DB.all(),before);
+ await r.DB.updateSubject('sub-1',{subject_name:'R03 Renamed',subject_code:'R03-NEW',academic_group_id:'ag-1'});
+ assert.equal((await r.DB.all()).subjects.find(s=>s.id==='sub-1').subject_code,'R03-NEW');
+});
+
+test('R-03 unused subject may move, but a timetable-only reference blocks it',async()=>{
+ const r=await runtime(),subject=await r.DB.addSubject({subject_name:'R03 Free',subject_code:'R03-FREE',teacher_name:'QA',semester:'2',academic_group_id:'ag-1'});
+ await r.DB.updateSubject(subject.id,{academic_group_id:'ag-other'});
+ assert.equal((await r.DB.all()).subjects.find(s=>s.id===subject.id).academic_group_id,'ag-other');
+ await r.DB.updateSubject(subject.id,{academic_group_id:'ag-1'});
+ await r.DB.addTimetableSlot({subject_id:subject.id,section_id:'sec-1',is_active:false});
+ await assert.rejects(r.DB.updateSubject(subject.id,{academic_group_id:'ag-other'}),e=>e.code==='23514');
+});
+
+test('R-03 CR permissions still reject privileged ownership changes',async()=>{
+ const r=await runtime();await r.DB.signIn('EE-25-A','demo','cr');
+ await assert.rejects(r.DB.updateStudent('stu-1',{section_id:'sec-2'}),/Another section/);
+ await assert.rejects(r.DB.updateSubject('sub-1',{academic_group_id:'ag-other'}),/read-only/);
+});
+
+test('R-03 student form disables conflicting sections and displays database errors',async()=>{
+ const r=await runtime(),data=await r.DB.all();
+ const nodes=new Map();let modal;
+ const node=()=>({innerHTML:'',value:'',dataset:{},append(){},addEventListener(){},insertAdjacentHTML(){},dispatchEvent(){},selectedOptions:[{dataset:{code:'EE-25-A'}}],reportValidity(){return true},remove(){}});
+ const get=s=>{if(!nodes.has(s))nodes.set(s,node());return nodes.get(s)};
+ r.context.document.querySelector=get;
+ r.context.document.querySelectorAll=s=>s==='[data-edit]'?[Object.assign(get('edit'),{dataset:{edit:'stu-1'}})]:[];
+ r.context.document.createElement=()=>{modal=node();modal.querySelector=get;return modal};
+ r.context.document.body={append(){}};r.context.Event=class Event{};
+ const page=await r.module('students.js');await page.render(data);get('edit').onclick();
+ assert.match(modal.innerHTML,/value="sec-2"[^>]*disabled/);
+ assert.ok(modal.innerHTML.includes('Section changes that conflict with attendance or leave records are blocked.'));
+ r.context.FormData=class FormData{*[Symbol.iterator](){yield ['section_id','sec-2']}};
+ await get('[data-save]').onclick();
+ assert.ok(modal.innerHTML.includes('Cannot move student to another section because attendance history exists'));
+});

@@ -1,4 +1,5 @@
 import {DB} from './supabase.js';
+import {studentReassignmentError} from './ownership-guards.js';
 import {$,$$,esc,toast,modal,confirmBox,sortRows,setupSort} from './ui.js';
 import {
   getCurrentUserContext,
@@ -154,11 +155,12 @@ function studentForm(s={}){
         <label>Section</label>
         <select class="select" name="section_id" id="formSectionSelect" required>
           ${sections.map(sec => `
-            <option value="${esc(sec.id)}" data-code="${esc(sec.section_code)}" ${(sec.id === defaultSectionId || sec.section_code === s.section) ? 'selected' : ''}>
+            <option value="${esc(sec.id)}" data-code="${esc(sec.section_code)}" ${(sec.id === defaultSectionId || sec.section_code === s.section) ? 'selected' : ''} ${edit&&studentReassignmentError(data,s.id,sec.id)?'disabled':''}>
               ${esc(sec.section_name)} (${esc(sec.section_code)})
             </option>
           `).join('')}
         </select>
+        ${edit&&sections.some(sec=>studentReassignmentError(data,s.id,sec.id))?'<span class="muted">Section changes that conflict with attendance or leave records are blocked.</span>':''}
         <input type="hidden" name="section" id="formSectionCode" value="${esc(s.section || 'A')}">
       </div>
     `;

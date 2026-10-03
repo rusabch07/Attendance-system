@@ -148,7 +148,7 @@ function bind(){
 
 function subjectForm(s={}){
   const edit=!!s.id;
-  const targetGroupId = context.activeGroupId || data.academic_groups?.[0]?.id;
+  const targetGroupId = s.academic_group_id || context.activeGroupId || data.academic_groups?.[0]?.id;
 
   const m=modal({
     title:edit?'Edit subject':'Add subject',

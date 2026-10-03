@@ -1,6 +1,7 @@
 import {SUPABASE_URL,SUPABASE_ANON_KEY,configured} from './config.js';
 import {clearAdminFilterContext,getCurrentUserContext} from './access-context.js';
 import {localDateKey,isSlotScheduledForDate,isValidDateKey} from './schedule.js';
+import {studentReassignmentError,subjectReassignmentError} from './ownership-guards.js';
 
 const demo = new URLSearchParams(location.search).get('demo') === '1';
 const qs = demo ? '?demo=1' : '';
@@ -653,6 +654,10 @@ for(const name of ['addStudent','updateStudent','deleteStudent','addSubject','up
    const row={...(existing||{}),...(typeof args[updating?1:0]==='object'?args[updating?1:0]:{})};
    if(kind==='Subject'&&!context.isAdmin)throw new Error('Shared subjects are read-only for CR accounts.');
    if(context.isCR&&kind&&kind!=='Subject'&&(row.section_id!==context.activeSectionId||!context.activeSectionId))throw new Error('Another section cannot be modified.');
+   if(name==='updateStudent'||name==='updateSubject'){
+    const message=name==='updateStudent'?studentReassignmentError(demoState,existing.id,row.section_id):subjectReassignmentError(demoState,existing.id,row.academic_group_id);
+    if(message){const error=new Error(message);error.code='23514';throw error;}
+   }
    if(['Student','Subject'].includes(kind)&&!name.startsWith('delete')){
     const field=kind==='Student'?'roll_no':'subject_code';
     if(demoState[tables[kind]].some(item=>item.id!==existing?.id&&item[field]===row[field]&&(kind==='Student'||item.academic_group_id===row.academic_group_id)))throw new Error(`${field} already exists.`);
