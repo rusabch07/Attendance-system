@@ -23,6 +23,7 @@ as $$
   )
 $$;
 revoke all on function public.is_attendance_user() from public;
+revoke all on function public.is_attendance_user() from anon, authenticated, service_role;
 grant execute on function public.is_attendance_user() to authenticated;
 
 create or replace function public.current_section_id()
@@ -43,6 +44,7 @@ as $$
   limit 1
 $$;
 revoke all on function public.current_section_id() from public;
+revoke all on function public.current_section_id() from anon, authenticated, service_role;
 grant execute on function public.current_section_id() to authenticated;
 
 create or replace function public.current_academic_group_id()
@@ -63,6 +65,7 @@ as $$
   limit 1
 $$;
 revoke all on function public.current_academic_group_id() from public;
+revoke all on function public.current_academic_group_id() from anon, authenticated, service_role;
 grant execute on function public.current_academic_group_id() to authenticated;
 
 create or replace function public.can_access_section(target_section_id uuid)
@@ -85,6 +88,7 @@ as $$
     )
 $$;
 revoke all on function public.can_access_section(uuid) from public;
+revoke all on function public.can_access_section(uuid) from anon, authenticated, service_role;
 grant execute on function public.can_access_section(uuid) to authenticated;
 
 create or replace function public.can_access_academic_group(target_academic_group_id uuid)
@@ -108,6 +112,7 @@ as $$
     )
 $$;
 revoke all on function public.can_access_academic_group(uuid) from public;
+revoke all on function public.can_access_academic_group(uuid) from anon, authenticated, service_role;
 grant execute on function public.can_access_academic_group(uuid) to authenticated;
 
 -- The subject policy previously compared against current_academic_group_id()
@@ -142,6 +147,7 @@ as $$
     )
 $$;
 revoke all on function public.can_access_attendance(uuid, uuid) from public;
+revoke all on function public.can_access_attendance(uuid, uuid) from anon, authenticated, service_role;
 grant execute on function public.can_access_attendance(uuid, uuid) to authenticated;
 
 -- Admin profiles may be global. The NOT VALID check leaves unknown legacy rows
@@ -271,6 +277,7 @@ begin
 end
 $$;
 revoke all on function public.qa_validate_references() from public;
+revoke all on function public.qa_validate_references() from anon, authenticated, service_role;
 
 drop trigger if exists qa_leave_references on public.student_leaves;
 create trigger qa_leave_references

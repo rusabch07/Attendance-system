@@ -169,6 +169,31 @@ from expected e
 left join pg_proc p on p.oid = to_regprocedure(e.function_signature)
 order by e.function_signature;
 
+-- Expected result: seven rows. Anonymous and service-role direct execution
+-- must be false. Authenticated execution is allowed only for the six RLS
+-- access helpers; the trigger function is never called directly by API roles.
+with expected(function_signature, authenticated_should_execute) as (
+  values
+    ('public.is_attendance_user()', true),
+    ('public.current_section_id()', true),
+    ('public.current_academic_group_id()', true),
+    ('public.can_access_section(uuid)', true),
+    ('public.can_access_academic_group(uuid)', true),
+    ('public.can_access_attendance(uuid,uuid)', true),
+    ('public.qa_validate_references()', false)
+)
+select
+  e.function_signature,
+  not has_function_privilege('anon', p.oid, 'EXECUTE') as anonymous_blocked,
+  (
+    has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    = e.authenticated_should_execute
+  ) as authenticated_permission_correct,
+  not has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role_direct_call_blocked
+from expected e
+left join pg_proc p on p.oid = to_regprocedure(e.function_signature)
+order by e.function_signature;
+
 -- Expected result: one row, validated = false, with the CR-only NULL check.
 select
   c.conname,
