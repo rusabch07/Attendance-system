@@ -1,6 +1,6 @@
 import {DB} from './supabase.js';
 import {$,$$,esc,toast,modal,confirmBox,subjectStats,studentSubjectRows,pageLink} from './ui.js';
-import {attendanceStats} from './attendance-math.js';
+import {attendanceStats,aggregateAttendanceStats,getSectionAttendancePolicy,attendancePercentageLabel} from './attendance-math.js';
 import {localDateKey,shortTime,resolveTodayScheduleItems,remainingScheduleItems} from './schedule.js';
 import {
   getCurrentUserContext,
@@ -41,7 +41,7 @@ export async function render(data){
 
   const threshold = Number(data.settings?.minimum_attendance || 75);
   const totalLectures = scopedLectures.length;
-  const summary = attendanceStats(scopedAttendance, data.settings?.leave_calculation_policy);
+  const summary = aggregateAttendanceStats(scopedData, scopedAttendance);
   const avg = summary.percentage;
   const today = localDateKey();
 
@@ -53,7 +53,7 @@ export async function render(data){
   const todayAbsent = todayAttendance.filter(a => a.status === 'absent').length;
 
   const subjectRows = scopedSubjects.map(subject => ({ subject, ...subjectStats(scopedData, subject.id) }));
-  const short = studentSubjectRows(scopedData).filter(item => item.percentage < threshold).sort((a,b) => a.percentage - b.percentage);
+  const short = studentSubjectRows(scopedData).filter(item => item.belowThreshold).sort((a,b) => a.percentage - b.percentage);
   const belowThresholdStudents=new Set(short.map(item=>item.student.id)).size;
 
   // Stats cards tailored for All Sections vs Specific Section
@@ -64,9 +64,9 @@ export async function render(data){
       ${stat('bi-building-fill', 'Total Sections', totalSections, '#0ea5e9', '#e0f2fe')}
       ${stat('bi-people-fill', 'Total Students', scopedStudents.length, '#1677ff', '#e6f1ff')}
       ${stat('bi-calendar2-day-fill', "Today's Classes", todayScheduleItems.length, '#e89b17', '#fff4d9')}
-      ${stat('bi-graph-up-arrow', 'Overall Attendance', `${avg}%`, '#0b9852', '#e3f8ed')}
+      ${stat('bi-graph-up-arrow', 'Overall Attendance', attendancePercentageLabel(avg), '#0b9852', '#e3f8ed')}
       ${stat('bi-calendar2-week-fill', 'Total Lectures', totalLectures, '#ef4d58', '#ffe9eb')}
-      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
+      ${stat('bi-exclamation-triangle-fill', context.isAllSections?'Below section requirement':`Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
     `;
   } else {
     statsCardsHtml = `
@@ -74,8 +74,8 @@ export async function render(data){
       ${stat('bi-calendar2-day-fill', "Today's Classes", todayScheduleItems.length, '#e89b17', '#fff4d9')}
       ${stat('bi-check-circle-fill', 'Present Today', todayPresent, '#0b9852', '#e3f8ed')}
       ${stat('bi-x-circle-fill', 'Absent Today', todayAbsent, '#ef4444', '#ffe8e9')}
-      ${stat('bi-graph-up-arrow', 'Average Attendance', `${avg}%`, '#1677ff', '#e6f1ff')}
-      ${stat('bi-exclamation-triangle-fill', `Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
+      ${stat('bi-graph-up-arrow', 'Average Attendance', attendancePercentageLabel(avg), '#1677ff', '#e6f1ff')}
+      ${stat('bi-exclamation-triangle-fill', context.isAllSections?'Below section requirement':`Below ${threshold}%`, belowThresholdStudents, '#ef4444', '#ffe8e9')}
     `;
   }
 
@@ -132,6 +132,7 @@ export async function render(data){
           <span class="muted">Average %</span>
         </div>
         <div class="chart-wrap">
+          ${subjectRows.some(row=>row.percentage===null)?'<p class="muted">Mixed leave policies: attendance percentages are section-specific; combined bars are omitted.</p>':''}
           <canvas id="subjectChart"></canvas>
         </div>
       </article>
@@ -148,7 +149,7 @@ export async function render(data){
 
       <article class="card table-card full-span">
         <div class="table-head">
-          <h2>Students Below ${threshold}%</h2>
+          <h2>${context.isAllSections?'Students Below Section Requirement':`Students Below ${threshold}%`}</h2>
           <a href="reports.html${DB.qs}" class="btn btn-soft btn-sm">View report</a>
         </div>
         <div class="table-wrap">
@@ -427,7 +428,7 @@ function drawCharts(subjectRows,data){
     type:'line',
     data:{
       labels:lectures.map(item=>new Date(`${item.lecture_date}T00:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric'})),
-      datasets:[{data:lectures.map(lecture=>{const rows=data.attendance.filter(item=>item.lecture_id===lecture.id);return attendanceStats(rows,data.settings?.leave_calculation_policy).percentage}),borderColor:'#1677ff',backgroundColor:'rgba(22,119,255,.1)',fill:true,tension:.38,pointRadius:4,pointBackgroundColor:'#fff',pointBorderWidth:2}]
+      datasets:[{data:lectures.map(lecture=>{const rows=data.attendance.filter(item=>item.lecture_id===lecture.id);return attendanceStats(rows,getSectionAttendancePolicy(data,lecture.section_id).leavePolicy).percentage}),borderColor:'#1677ff',backgroundColor:'rgba(22,119,255,.1)',fill:true,tension:.38,pointRadius:4,pointBackgroundColor:'#fff',pointBorderWidth:2}]
     },
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:value=>`${value}%`},grid:{color:'#edf1f6'}},x:{grid:{display:false}}}}
   });

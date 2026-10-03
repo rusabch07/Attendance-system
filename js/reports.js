@@ -1,6 +1,6 @@
 import {$,$$,esc,subjectStats,studentSubjectRows,sortRows,setupSort} from './ui.js';
 import {DB} from './supabase.js';
-import {attendanceStats} from './attendance-math.js';
+import {getSectionAttendancePolicy,attendancePercentageLabel} from './attendance-math.js';
 import {exportTableExcel,exportTablePdf,exportTableCsv,formatReportDate} from './export-utils.js';
 import {
   getCurrentUserContext,
@@ -80,7 +80,7 @@ function draw(){
       <div class="segmented">
         <button data-mode="student" class="${mode==='student'?'active':''}">Student</button>
         <button data-mode="subject" class="${mode==='subject'?'active':''}">Subject</button>
-        <button data-mode="short" class="${mode==='short'?'active':''}">Below ${data.settings?.minimum_attendance||75}%</button>
+        <button data-mode="short" class="${mode==='short'?'active':''}">${context.isAllSections?'Below section requirement':`Below ${data.settings?.minimum_attendance||75}%`}</button>
       </div>
     </div>
 
@@ -129,12 +129,8 @@ function draw(){
 
 function studentReport(d){
   const st=d.students.find(x=>x.id===studentId);
-  const rows=(subjectId?d.subjects.filter(x=>x.id===subjectId):d.subjects).map(s=>({subject:s,...subjectStats(d,s.id,studentId)})).filter(x=>x.total);
-  const summary=attendanceStats({
-    present:rows.reduce((n,x)=>n+x.present,0),
-    absent:rows.reduce((n,x)=>n+x.absent,0),
-    leave:rows.reduce((n,x)=>n+x.leave,0)
-  },data.settings?.leave_calculation_policy);
+  const rows=(subjectId?d.subjects.filter(x=>x.id===subjectId):d.subjects).map(s=>({subject:s,...subjectStats(d,s.id,studentId||null)})).filter(x=>x.total);
+  const summary=subjectStats(d,subjectId,studentId||null);
 
   return `
     ${cards(summary.total,summary.present,summary.absent,summary.leave,summary.percentage,['Total Lectures','Present','Absent','On Leave','Attendance %'])}
@@ -152,7 +148,7 @@ function studentReport(d){
             <tr><th>Subject</th><th>Present</th><th>Absent</th><th>On Leave</th><th>Total Lectures</th><th>Attendance %</th></tr>
           </thead>
           <tbody>
-            ${rows.map(x=>`<tr><td><strong>${esc(x.subject.subject_name)}</strong></td><td>${x.present}</td><td>${x.absent}</td><td>${x.leave}</td><td>${x.total}</td><td><strong class="${color(x.percentage)}">${x.percentage}%</strong></td></tr>`).join('')||empty(6)}
+            ${rows.map(x=>`<tr><td><strong>${esc(x.subject.subject_name)}</strong></td><td>${x.present}</td><td>${x.absent}</td><td>${x.leave}</td><td>${x.total}</td><td><strong class="${color(x)}">${attendancePercentageLabel(x.percentage)}</strong></td></tr>`).join('')||empty(6)}
           </tbody>
         </table>
       </div>
@@ -164,11 +160,7 @@ function subjectReport(d){
   const sub=d.subjects.find(x=>x.id===subjectId);
   let rows=d.students.filter(s=>!section||s.section===section||s.section_id===section).map(s=>({student:s,...subjectStats(d,subjectId,s.id)})).filter(x=>x.total);
   rows=rows.sort((a,b)=>(a.percentage-b.percentage)*(sortDir==='asc'?1:-1));
-  const summary=attendanceStats({
-    present:rows.reduce((n,x)=>n+x.present,0),
-    absent:rows.reduce((n,x)=>n+x.absent,0),
-    leave:rows.reduce((n,x)=>n+x.leave,0)
-  },data.settings?.leave_calculation_policy);
+  const summary=subjectStats({...d,attendance:d.attendance.filter(a=>rows.some(x=>x.student.id===a.student_id))},subjectId);
   const totalLectures=d.lectures.filter(l=>l.subject_id===subjectId).length;
 
   return `
@@ -205,7 +197,7 @@ function subjectReport(d){
                 <td>${x.absent}</td>
                 <td>${x.leave}</td>
                 <td>${x.total}</td>
-                <td><strong class="${color(x.percentage)}">${x.percentage}%</strong></td>
+                <td><strong class="${color(x)}">${attendancePercentageLabel(x.percentage)}</strong></td>
               </tr>
             `).join('')||empty(context.isAllSections ? 8 : 7)}
           </tbody>
@@ -217,14 +209,14 @@ function subjectReport(d){
 
 function shortReport(d){
   const threshold=Number(data.settings?.minimum_attendance||75);
-  let rows=studentSubjectRows(d).filter(x=>x.percentage<threshold&&(!section||x.student.section===section||x.student.section_id===section)&&(!studentId||x.student.id===studentId)&&(!subjectId||x.subject.id===subjectId));
+  let rows=studentSubjectRows(d).filter(x=>x.belowThreshold&&(!section||x.student.section===section||x.student.section_id===section)&&(!studentId||x.student.id===studentId)&&(!subjectId||x.subject.id===subjectId));
 
   return `
     <article class="card table-card">
       <div class="table-head">
         <div>
           <h2>Short Attendance List</h2>
-          <span class="muted">Students below ${threshold}% · ${rows.length} records</span>
+          <span class="muted">${context.isAllSections?'Threshold: Section-specific':`Students below ${threshold}%`} · ${rows.length} records</span>
         </div>
         <div class="actions">
           <button class="btn btn-outline btn-sm" data-short="csv">CSV</button>
@@ -258,7 +250,7 @@ function shortReport(d){
                 <td>${x.absent}</td>
                 <td>${x.leave}</td>
                 <td>${x.total}</td>
-                <td><strong class="text-danger">${x.percentage}%</strong></td>
+                <td><strong class="text-danger">${attendancePercentageLabel(x.percentage)}</strong></td>
               </tr>
             `).join('')||empty(context.isAllSections ? 9 : 8)}
           </tbody>
@@ -269,27 +261,28 @@ function shortReport(d){
 }
 
 function cards(total,present,absent,leave,percentage,labels=['Total Lectures','Present','Absent','On Leave','Attendance %']){
-  return `<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">${[['bi-calendar2-week-fill',labels[0],total,'#1677ff','#e6f1ff'],['bi-check-circle-fill',labels[1],present,'#16a65a','#e3f8ed'],['bi-x-circle-fill',labels[2],absent,'#ef4444','#ffe8e9'],['bi-calendar2-minus-fill',labels[3],leave,'#e69718','#fff1d1'],['bi-percent',labels[4],`${percentage}%`,'#7857d8','#f0ebff']].map(x=>`<article class="card stat-card" style="--accent:${x[3]};--tint:${x[4]}"><div class="stat-label">${x[1]}</div><div class="stat-value"><span class="stat-icon"><i class="bi ${x[0]}"></i></span>${x[2]}</div></article>`).join('')}</div>`;
+  return `<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">${[['bi-calendar2-week-fill',labels[0],total,'#1677ff','#e6f1ff'],['bi-check-circle-fill',labels[1],present,'#16a65a','#e3f8ed'],['bi-x-circle-fill',labels[2],absent,'#ef4444','#ffe8e9'],['bi-calendar2-minus-fill',labels[3],leave,'#e69718','#fff1d1'],['bi-percent',labels[4],attendancePercentageLabel(percentage),'#7857d8','#f0ebff']].map(x=>`<article class="card stat-card" style="--accent:${x[3]};--tint:${x[4]}"><div class="stat-label">${x[1]}</div><div class="stat-value"><span class="stat-icon"><i class="bi ${x[0]}"></i></span>${x[2]}</div></article>`).join('')}</div>`;
 }
 
-function color(n){return n<Number(data.settings?.minimum_attendance??75)?'text-danger':n>=90?'text-success':'text-blue'}
+function color(x){return x.belowThreshold?'text-danger':x.percentage>=90?'text-success':'text-blue'}
 function empty(n){return`<tr><td colspan="${n}"><div class="empty"><i class="bi bi-bar-chart"></i>No report data for these filters.</div></td></tr>`}
 
 function currentRows(){
   const d=subset();
   if(mode==='student'){
     return (subjectId?d.subjects.filter(x=>x.id===subjectId):d.subjects).map(s=>{
-      const x=subjectStats(d,s.id,studentId);
-      return {Subject:s.subject_name,Present:x.present,Absent:x.absent,'On Leave':x.leave,'Total Lectures':x.total,'Attendance %':`${x.percentage}%`};
+      const x=subjectStats(d,s.id,studentId||null);
+      return {...policyFields(x),Subject:s.subject_name,Present:x.present,Absent:x.absent,'On Leave':x.leave,'Total Lectures':x.total,'Attendance %':`${attendancePercentageLabel(x.percentage)}`};
     }).filter(x=>x['Total Lectures']);
   }
   if(mode==='subject'){
-    return d.students.map(s=>{
+    return d.students.filter(s=>!section||s.section_id===section).map(s=>{
       const x=subjectStats(d,subjectId,s.id);
-      return {'Roll No':s.roll_no,Student:s.name,Section:getSectionLabel(s, data),Present:x.present,Absent:x.absent,'On Leave':x.leave,Total:x.total,Percentage:`${x.percentage}%`};
+      return {...policyFields(x),'Roll No':s.roll_no,Student:s.name,Section:getSectionLabel(s, data),Present:x.present,Absent:x.absent,'On Leave':x.leave,Total:x.total,Percentage:`${attendancePercentageLabel(x.percentage)}`};
     }).filter(x=>x.Total);
   }
-  return studentSubjectRows(d).filter(x=>x.percentage<Number(data.settings?.minimum_attendance||75)).map(x=>({
+  return studentSubjectRows(d).filter(x=>x.belowThreshold&&(!section||x.student.section_id===section)&&(!studentId||x.student.id===studentId)&&(!subjectId||x.subject.id===subjectId)).map(x=>({
+    ...policyFields(x),
     'Roll No':x.student.roll_no,
     'Student Name':x.student.name,
     Section:getSectionLabel(x.student, data),
@@ -298,17 +291,18 @@ function currentRows(){
     Absent:x.absent,
     'On Leave':x.leave,
     'Total Lectures':x.total,
-    'Attendance %':`${x.percentage}%`
+    'Attendance %':`${attendancePercentageLabel(x.percentage)}`
   }));
 }
 
-function reportExportOptions(){
+function baseReportExportOptions(){
   const organization={universityName:data.settings?.university_name,className:data.settings?.class_name,semesterName:data.settings?.semester_name};
   if(mode==='student'){
     const selected=data.students.find(s=>s.id===studentId)||{};
     return {
       organization,
-      policy:data.settings?.leave_calculation_policy,
+      policy:mode==='student'&&studentId?getSectionAttendancePolicy(data,data.students.find(s=>s.id===studentId)?.section_id).leavePolicy:data.settings?.leave_calculation_policy,
+      showSummary:!context.isAllSections || (mode==='student'&&!!studentId),
       title:'STUDENT ATTENDANCE REPORT',
       fileName:`${selected.name||'Student'}-Attendance-Report`,
       metadata:[
@@ -324,7 +318,8 @@ function reportExportOptions(){
     const selected=data.subjects.find(s=>s.id===subjectId)||{};
     return {
       organization,
-      policy:data.settings?.leave_calculation_policy,
+      policy:mode==='student'&&studentId?getSectionAttendancePolicy(data,data.students.find(s=>s.id===studentId)?.section_id).leavePolicy:data.settings?.leave_calculation_policy,
+      showSummary:!context.isAllSections || (mode==='student'&&!!studentId),
       title:'SUBJECT ATTENDANCE REPORT',
       fileName:`${selected.subject_name||'Subject'}-Attendance-Report`,
       metadata:[
@@ -350,7 +345,7 @@ function reportExportOptions(){
     policy:data.settings?.leave_calculation_policy,
     title:'SHORT ATTENDANCE REPORT',
     fileName:'Short-Attendance-Report',
-    minimumAttendance:threshold,
+    minimumAttendance:context.isAllSections?undefined:threshold,
     showSummary:false,
     metadata:[
       {label:'Subject',value:data.subjects.find(s=>s.id===subjectId)?.subject_name},
@@ -361,8 +356,17 @@ function reportExportOptions(){
   };
 }
 
+function reportExportOptions(){
+  const options=baseReportExportOptions();
+  if(context.isAllSections&&currentRows()[0]?.['Minimum Attendance']!==undefined)options.columns.push(...['Minimum Attendance','Leave Policy','Requirement Status'].map(key=>({key,label:key})));
+  return options;
+}
+
+function policyFields(x){return context.isAllSections&&x.minimumAttendance!==undefined?{'Minimum Attendance':x.minimumAttendance,'Leave Policy':x.leavePolicy,'Requirement Status':x.belowThreshold?'Below requirement':'Meets requirement'}:{}}
+
 function exportMenu(){
   const rows=currentRows(),options=reportExportOptions();
+
   const format=$('#reportFormat').value;
   if(format==='csv')exportTableCsv(options.fileName,rows,options);
   else if(format==='pdf')exportTablePdf(options.title,rows,options);

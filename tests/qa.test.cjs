@@ -11,7 +11,7 @@ async function runtime(shared={}){
  const downloads=[];
  const context=vm.createContext({URLSearchParams,URL,crypto,structuredClone,console,Date,setTimeout,clearTimeout,location:{search:'?demo=1',hash:''},window:{},sessionStorage:shared.sessionStorage||storage(),localStorage:shared.localStorage||storage(),document:{querySelector:()=>null,querySelectorAll:()=>[],createElement:()=>({click(){}})},Blob});
  const cache=new Map();
- function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);const mod=new vm.SourceTextModule(fs.readFileSync(file,'utf8'),{context,identifier:file});cache.set(file,mod);return mod;}
+ function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);const mod=new vm.SourceTextModule(fs.readFileSync(file,'utf8')+(shared.inspect&&path.basename(file)==='reports.js'?'\nexport {currentRows,reportExportOptions,studentReport,subjectReport,shortReport}; export function qaMode(value){mode=value;studentId="";subjectId="sub-1";}':shared.inspect&&path.basename(file)==='exports.js'?'\nexport {getRows,exportOptions}; export function qaType(value){type=value;}':''),{context,identifier:file});cache.set(file,mod);return mod;}
  const entry=load(path.join(root,'js/supabase.js'));
  await entry.link((specifier,referencing)=>load(path.resolve(path.dirname(referencing.identifier),specifier)));
  await entry.evaluate();
@@ -172,4 +172,69 @@ test('all JavaScript modules parse and local HTML asset links exist',()=>{
   const html=fs.readFileSync(path.join(root,file),'utf8');
   for(const match of html.matchAll(/(?:src|href)="([^"?#]+)(?:[?#][^"]*)?"/g))if(!/^(https?:|#)/.test(match[1]))assert.ok(fs.existsSync(path.join(root,match[1])),`${file}: ${match[1]}`);
  }
+});
+
+async function mixedPolicyFixture(){
+ const r=await runtime({inspect:true}),data=await r.DB.all();
+ data.settings_rows=[{section_id:'sec-1',minimum_attendance:80,leave_calculation_policy:'exclude_leave'},{section_id:'sec-2',minimum_attendance:90,leave_calculation_policy:'count_leave_as_absent'}];data.settings={};
+ data.students=data.students.filter(s=>['stu-1','stu-9'].includes(s.id));
+ data.lectures=[];data.attendance=[];data.timetable=[];data.schedule_exceptions=[];
+ for(const student of data.students)for(const [i,status] of ['present','present','present','absent','leave','leave'].entries()){
+  const id=student.id+'-'+i;data.lectures.push({id,section_id:student.section_id,subject_id:'sub-1',lecture_date:'2026-10-01',lecture_number:i+1});data.attendance.push({lecture_id:id,student_id:student.id,status});
+ }
+ const nodes=new Map();r.context.document.querySelector=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',value:'',addEventListener(){},insertAdjacentHTML(){}});return nodes.get(selector)};
+ r.context.document.querySelectorAll=()=>[];
+ return {r,data,nodes};
+}
+test('R-02 own section policies, independent thresholds and missing-settings fallback',async()=>{
+ const {r,data}=await mixedPolicyFixture(),ui=await r.module('ui.js'),math=await r.module('attendance-math.js');
+ const rows=ui.studentSubjectRows(data);assert.equal(rows[0].percentage,75);assert.equal(rows[1].percentage,50);
+ assert.equal(rows[0].minimumAttendance,80);assert.equal(rows[1].minimumAttendance,90);
+ for(const sectionId of ['sec-1','sec-2']){const scoped={...data,students:data.students.filter(s=>s.section_id===sectionId)};assert.equal(ui.studentSubjectRows(scoped)[0].percentage,sectionId==='sec-1'?75:50)}
+ assert.equal(math.sectionAttendanceStats(data,{present:82,absent:18},'sec-1').belowThreshold,false);
+ assert.equal(math.sectionAttendanceStats(data,{present:82,absent:18},'sec-2').belowThreshold,true);
+ assert.equal(math.getSectionAttendancePolicy(data,'missing').minimumAttendance,75);
+ assert.equal(math.sectionAttendanceStats(data,{present:3,absent:1,leave:2},'missing').percentage,75);
+ assert.equal(math.aggregateAttendanceStats(data,data.attendance).percentage,null);
+});
+test('R-02 dashboard section A, section B, combined shortage count and wording',async()=>{
+ const {r,data,nodes}=await mixedPolicyFixture(),dashboard=await r.module('dashboard.js');
+ for(const [section,percentage,count] of [['sec-1','75%',1],['sec-2','50%',1],['all','Section-specific',2]]){
+  r.context.sessionStorage.setItem('attendance_admin_section_filter',section);
+  data.settings=data.settings_rows.find(s=>s.section_id===section)||{};
+  await dashboard.render(data);const html=nodes.get('#page').innerHTML;
+  assert.ok(html.includes(percentage));assert.match(html,new RegExp('Below '+(section==='all'?'section requirement':section==='sec-1'?'80%':'90%')+'[\\s\\S]*?<span>'+count+'</span>'));
+ }
+});
+test('R-02 mixed reports and history render own section percentages and warnings',async()=>{
+ const {r,data,nodes}=await mixedPolicyFixture(),reports=await r.module('reports.js');await reports.render(data);
+ const subject=reports.subjectReport(data);assert.ok(subject.includes('75%'));assert.ok(subject.includes('50%'));assert.ok(subject.includes('Section-specific'));
+ const student=reports.studentReport(data);assert.ok(student.includes('75%'));assert.ok(student.includes('text-danger'));
+ reports.qaMode('short');const short=reports.shortReport(data);assert.ok(short.includes('Threshold: Section-specific'));assert.ok(short.includes('50%'));
+ const ui=await r.module('ui.js');assert.equal(ui.lectureStats(data,data.lectures[4]).leavePolicy,'exclude_leave');assert.equal(ui.lectureStats(data,data.lectures[10]).leavePolicy,'count_leave_as_absent');
+ const history=await r.module('history.js');await history.render(data);assert.ok(nodes.get('#page').innerHTML.includes('text-danger'));
+});
+test('R-02 report CSV preserves own policy and generic mixed exports suppress a common summary',async()=>{
+ const {r,data}=await mixedPolicyFixture(),reports=await r.module('reports.js');await reports.render(data);
+ const rows=reports.currentRows();assert.equal(rows[0]['Attendance %'],'75%');assert.equal(rows[0]['Minimum Attendance'],80);assert.equal(rows[0]['Leave Policy'],'exclude_leave');assert.equal(rows[0]['Requirement Status'],'Below requirement');
+ let blob;r.context.URL={createObjectURL:b=>{blob=b;return 'blob:qa'},revokeObjectURL(){}};
+ const exports=await r.module('export-utils.js');exports.exportTableCsv('qa',rows);assert.ok((await blob.text()).includes('75%'));
+ const page=await r.module('exports.js');await page.render(data);assert.equal(page.exportOptions().showSummary,false);assert.equal(page.getRows().length,12);page.qaType('short');const shortage=page.getRows();assert.equal(shortage[1]['Attendance %'],50);assert.equal(shortage[1]['Minimum Attendance'],90);assert.equal(shortage[1]['Leave Policy'],'count_leave_as_absent');
+ reports.qaMode('subject');const subjectRows=reports.currentRows();assert.equal(subjectRows[1].Percentage,'50%');assert.equal(subjectRows[1]['Minimum Attendance'],90);
+});
+
+test('R-02 equal 82% produces one shortage in All Sections and CR keeps own policy',async()=>{
+ const {r,data,nodes}=await mixedPolicyFixture();data.attendance=[];
+ for(const student of data.students)for(let i=0;i<100;i++)data.attendance.push({student_id:student.id,lecture_id:student.id+'-0',status:i<82?'present':'absent'});
+ const dashboard=await r.module('dashboard.js');await dashboard.render(data);
+ assert.match(nodes.get('#page').innerHTML,/Below section requirement[\s\S]*?<span>1<\/span>/);
+ const reports=await r.module('reports.js');await reports.render(data);reports.qaMode('subject');const html=reports.subjectReport(data);
+ assert.match(html,/text-blue">82%/);assert.match(html,/text-danger">82%/);
+ const ui=await r.module('ui.js');
+ for(const [id,expected] of [['sec-1',75],['sec-2',50]]){
+  const lecture={id:'history-'+id,section_id:id};const marks=['present','present','present','absent','leave','leave'].map(status=>({lecture_id:lecture.id,status}));
+  assert.equal(ui.lectureStats({...data,attendance:marks},lecture).percentage,expected);
+ }
+ data.profile={role:'cr',section_id:'sec-1'};data.settings=data.settings_rows[0];await dashboard.render(data);assert.ok(nodes.get('#page').innerHTML.includes('Below 80%'));
+ reports.qaMode('subject');assert.ok(reports.reportExportOptions().columns.some(c=>c.key==='Minimum Attendance'));
 });

@@ -1,5 +1,5 @@
 import {DB} from './supabase.js';
-import {attendanceStats} from './attendance-math.js';
+import {sectionAttendanceStats,aggregateAttendanceStats} from './attendance-math.js';
 export const $=(s,r=document)=>r.querySelector(s);export const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 export const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 export const fmtDate=v=>v?new Date(`${v}T00:00:00`).toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}):'—';
@@ -7,8 +7,8 @@ export const pct=(n,d)=>d?+(n*100/d).toFixed(1):0;
 export const pageLink=p=>`${p}.html${DB.qs}`;
 export const subjectName=(data,id)=>data.subjects.find(x=>x.id===id)?.subject_name||'Unknown subject';
 export const studentName=(data,id)=>data.students.find(x=>x.id===id)?.name||'Unknown student';
-export function lectureStats(data,lecture){const rows=data.attendance.filter(a=>a.lecture_id===lecture.id);return{rows,...attendanceStats(rows,data.settings?.leave_calculation_policy)}}
-export function subjectStats(data,subjectId,studentId=null){const lids=data.lectures.filter(l=>l.subject_id===subjectId).map(l=>l.id);const rows=data.attendance.filter(a=>lids.includes(a.lecture_id)&&(!studentId||a.student_id===studentId));return attendanceStats(rows,data.settings?.leave_calculation_policy)}
+export function lectureStats(data,lecture){const rows=data.attendance.filter(a=>a.lecture_id===lecture.id);return{rows,...sectionAttendanceStats(data,rows,lecture.section_id)}}
+export function subjectStats(data,subjectId,studentId=null){const lids=data.lectures.filter(l=>!subjectId||l.subject_id===subjectId).map(l=>l.id);const rows=data.attendance.filter(a=>lids.includes(a.lecture_id)&&(!studentId||a.student_id===studentId));return studentId?sectionAttendanceStats(data,rows,data.students.find(s=>s.id===studentId)?.section_id):aggregateAttendanceStats(data,rows)}
 export function studentSubjectRows(data){return data.students.flatMap(st=>data.subjects.map(sub=>{const s=subjectStats(data,sub.id,st.id);return{student:st,subject:sub,...s}}).filter(x=>x.total>0))}
 export function toast(message,type='success'){let stack=$('.toast-stack');if(!stack){stack=document.createElement('div');stack.className='toast-stack';document.body.append(stack)}const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<i class="bi ${type==='error'?'bi-exclamation-circle':'bi-check-circle'}"></i><span>${esc(message)}</span>`;stack.append(t);setTimeout(()=>t.remove(),3600)}
 export function modal({title='',body='',actions='',small=false}){const wrap=document.createElement('div');wrap.className='modal-backdrop';wrap.innerHTML=`<div class="modal ${small?'sm':''}" role="dialog" aria-modal="true"><div class="modal-head"><h2>${title}</h2><button class="modal-close" aria-label="Close"><i class="bi bi-x-lg"></i></button></div><div class="modal-body">${body}</div>${actions?`<div class="modal-actions">${actions}</div>`:''}</div>`;document.body.append(wrap);const close=()=>wrap.remove();$('.modal-close',wrap).onclick=close;wrap.addEventListener('click',e=>{if(e.target===wrap)close()});return{el:wrap,close,body:$('.modal-body',wrap)}}

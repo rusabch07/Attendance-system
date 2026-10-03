@@ -61,7 +61,7 @@ function draw(){
           <option value="subject" ${type==='subject'?'selected':''}>Subject</option>
           <option value="date" ${type==='date'?'selected':''}>Date Range</option>
           ${context.isAllSections ? `<option value="section" ${type==='section'?'selected':''}>Section</option>` : ''}
-          <option value="short" ${type==='short'?'selected':''}>Students Below ${data.settings?.minimum_attendance||75}%</option>
+          <option value="short" ${type==='short'?'selected':''}>${context.isAllSections?'Students Below Section Requirement':`Students Below ${data.settings?.minimum_attendance||75}%`}</option>
         </select>
       </div>
       ${type==='lecture'?`
@@ -151,9 +151,8 @@ function selectSection(){
 
 function getRows(){
   const d = getScopedData();
-  const threshold=Number(data.settings?.minimum_attendance||75);
   if(type==='short'){
-    return studentSubjectRows(d).filter(x=>x.percentage<threshold).map(x=>({
+    return studentSubjectRows(d).filter(x=>x.belowThreshold).map(x=>({
       'Roll No':x.student.roll_no,
       'Student Name':x.student.name,
       Section:getSectionLabel(x.student, data),
@@ -162,7 +161,8 @@ function getRows(){
       Absent:x.absent,
       'On Leave':x.leave,
       'Total Lectures':x.total,
-      'Attendance %':x.percentage
+      'Attendance %':x.percentage,
+      ...(context.isAllSections?{'Minimum Attendance':x.minimumAttendance,'Leave Policy':x.leavePolicy,'Requirement Status':x.belowThreshold?'Below requirement':'Meets requirement'}:{})
     }));
   }
 
@@ -198,6 +198,7 @@ function exportOptions(){
   };
   const options={
     organization,
+    showSummary:!context.isAllSections,
     policy:data.settings?.leave_calculation_policy,
     title:'CLASS ATTENDANCE REPORT',
     fileName:`${type}-attendance-report`
@@ -237,7 +238,7 @@ function exportOptions(){
   if(type==='short'){
     options.title='SHORT ATTENDANCE REPORT';
     options.fileName='Short-Attendance-Report';
-    options.minimumAttendance=Number(data.settings?.minimum_attendance||75);
+    options.minimumAttendance=context.isAllSections?undefined:Number(data.settings?.minimum_attendance||75);
     options.showSummary=false;
   }
   if(type==='semester') options.fileName='Semester-Attendance-Report';

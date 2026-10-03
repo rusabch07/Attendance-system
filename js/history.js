@@ -120,7 +120,7 @@ function draw(){
                   <td class="text-success">${st.present}</td>
                   <td class="text-danger">${st.absent}</td>
                   <td class="text-warning">${st.leave}</td>
-                  <td><strong class="${st.percentage<Number(data.settings?.minimum_attendance??75)?'text-danger':'text-success'}">${st.percentage}%</strong></td>
+                  <td><strong class="${st.belowThreshold?'text-danger':'text-success'}">${st.percentage}%</strong></td>
                   <td>
                     <div class="actions">
                       <button class="btn-icon" data-view="${l.id}" title="View details"><i class="bi bi-eye"></i></button>

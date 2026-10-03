@@ -1,3 +1,24 @@
+// Missing settings retain the existing 75% / exclude_leave defaults.
+export function getSectionAttendancePolicy(data,sectionId){
+ const settings=data.settings_rows?.find(row=>row.section_id===sectionId)
+  || (data.settings?.section_id===sectionId||!data.settings_rows ? data.settings : null) || {};
+ return {minimumAttendance:Number(settings.minimum_attendance||75),leavePolicy:settings.leave_calculation_policy||'exclude_leave'};
+}
+
+export function sectionAttendanceStats(data,rows,sectionId){
+ const policy=getSectionAttendancePolicy(data,sectionId);
+ const stats=attendanceStats(rows,policy.leavePolicy);
+ return {...stats,...policy,belowThreshold:stats.percentage<policy.minimumAttendance};
+}
+
+// A mixed-policy total has valid raw counts, but no common percentage.
+export function aggregateAttendanceStats(data,rows){
+ const policies=new Set(rows.map(row=>getSectionAttendancePolicy(data,data.students.find(s=>s.id===row.student_id)?.section_id||data.lectures.find(l=>l.id===row.lecture_id)?.section_id).leavePolicy));
+ return {...attendanceStats(rows,[...policies][0]),...(policies.size>1?{percentage:null}: {})};
+}
+
+export const attendancePercentageLabel=value=>value===null?'Section-specific':`${value}%`;
+
 export function attendanceStats(rowsOrCounts,policy='exclude_leave'){
  const counts=Array.isArray(rowsOrCounts)?rowsOrCounts.reduce((result,row)=>{if(row.status==='present')result.present++;else if(row.status==='absent')result.absent++;else if(row.status==='leave')result.leave++;return result},{present:0,absent:0,leave:0}):rowsOrCounts||{};
  const present=Number(counts.present)||0,absent=Number(counts.absent)||0,leave=Number(counts.leave)||0;
