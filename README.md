@@ -24,6 +24,8 @@ A static HTML, CSS, and JavaScript attendance application backed by Supabase and
 
    `supabase/migrations/20261002070000_qa_integrity_guards.sql`
 
+   `supabase/migrations/20261002080000_atomic_attendance_save.sql`
+
 4. Confirm that `public.timetable` appears in **Table Editor** and that Row Level Security is enabled.
 5. Keep the existing public Supabase URL and publishable/anon key in `js/config.js`. Never add a service-role key to browser code.
 
@@ -34,6 +36,8 @@ The Phase 3 migration adds `leave` as an attendance status and defaults the leav
 The Phase 4 migration adds the student leave request table and role-protected access policies. Approved requests preselect students as on leave for new attendance on covered dates; existing attendance is not changed.
 
 The Phase 5 migration creates `public.sections`, adds and backfills `section_id` on existing records to the default Section A, and replaces broad RLS policies with section-scoped policies. Existing clients remain compatible because new section IDs default to Section A. No accounts or login behavior are created or changed by this migration.
+
+The R-01 migration adds the `save_attendance_transaction` RPC. New lecture saves and historical attendance edits now write lecture metadata and all submitted marks in one PostgreSQL transaction; any validation or attendance-write failure rolls the entire call back.
 
 ## Timetable workflow
 

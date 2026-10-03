@@ -127,6 +127,36 @@ test('scheduled and manual duplicate prevention and attendance ownership',async(
  assert.equal((await r.DB.all()).attendance.find(a=>a.lecture_id===lecture.id).status,'leave');
  await r.DB.deleteLecture(lecture.id);assert.equal((await r.DB.all()).attendance.some(a=>a.lecture_id===lecture.id),false);
 });
+test('failed new attendance save leaves lecture and mark counts unchanged',async()=>{
+ const r=await runtime(),before=await r.DB.all();
+ const lectureCount=before.lectures.length,attendanceCount=before.attendance.length;
+ const meta={subject_id:'sub-1',section_id:'sec-1',section:'A',lecture_number:200,lecture_date:'2031-01-10',schedule_slot_id:null};
+ await assert.rejects(r.DB.saveLecture(meta,[{student_id:'stu-1',status:'present'},{student_id:'stu-9',status:'absent'}]));
+ const after=await r.DB.all();
+ assert.equal(after.lectures.length,lectureCount);
+ assert.equal(after.attendance.length,attendanceCount);
+ assert.equal(after.lectures.some(l=>l.subject_id===meta.subject_id&&l.lecture_number===meta.lecture_number),false);
+});
+test('failed historical attendance edit changes neither metadata nor marks',async()=>{
+ const r=await runtime();
+ const meta={subject_id:'sub-1',section_id:'sec-1',section:'A',lecture_number:201,lecture_date:'2031-01-11',schedule_slot_id:null};
+ const lecture=await r.DB.saveLecture(meta,[{student_id:'stu-1',status:'present'},{student_id:'stu-2',status:'absent'}]);
+ const original=(await r.DB.all()),originalLecture=structuredClone(original.lectures.find(l=>l.id===lecture.id));
+ const originalMarks=structuredClone(original.attendance.filter(a=>a.lecture_id===lecture.id).sort((a,b)=>a.student_id.localeCompare(b.student_id)));
+ await assert.rejects(r.DB.updateLecture(lecture.id,{...meta,lecture_number:202},[{student_id:'stu-1',status:'leave'},{student_id:'stu-9',status:'present'}]));
+ const after=await r.DB.all();
+ assert.deepEqual(after.lectures.find(l=>l.id===lecture.id),originalLecture);
+ assert.deepEqual(after.attendance.filter(a=>a.lecture_id===lecture.id).sort((a,b)=>a.student_id.localeCompare(b.student_id)),originalMarks);
+});
+test('successful attendance save commits lecture and every P A L mark',async()=>{
+ const r=await runtime(),before=await r.DB.all();
+ const meta={subject_id:'sub-1',section_id:'sec-1',section:'A',lecture_number:203,lecture_date:'2031-01-12',schedule_slot_id:null};
+ const rows=[{student_id:'stu-1',status:'present'},{student_id:'stu-2',status:'absent'},{student_id:'stu-3',status:'leave'}];
+ const lecture=await r.DB.saveLecture(meta,rows),after=await r.DB.all();
+ assert.equal(after.lectures.length,before.lectures.length+1);
+ assert.equal(after.attendance.length,before.attendance.length+3);
+ assert.deepEqual(after.attendance.filter(a=>a.lecture_id===lecture.id).map(a=>a.status).sort(),['absent','leave','present']);
+});
 test('leave creation/approval/rejection and reference checks',async()=>{
  const r=await runtime(),row={student_id:'stu-1',section_id:'sec-1',start_date:'2026-10-05',end_date:'2026-10-06',reason:'QA'};
  const leave=await r.DB.addLeave(row);assert.equal(leave.status,'pending');

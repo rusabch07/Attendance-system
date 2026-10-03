@@ -198,6 +198,20 @@ for(let s=0;s<subjects.length;s++){
 }
 
 function check(res){if(res.error)throw res.error;return res.data}
+function attendanceSaveError(error){
+ const messages={
+  '23505':'Attendance already exists for this lecture or timetable occurrence.',
+  '23514':'Attendance could not be saved because its section, schedule, or student data is invalid.',
+  '23503':'Attendance could not be saved because a referenced record no longer exists.',
+  '42501':'You do not have permission to save attendance for this section.',
+  '22023':'Attendance could not be saved because the submitted details are invalid.',
+  '22P02':'Attendance could not be saved because the submitted details are invalid.',
+  'P0002':'The attendance record was not found or is no longer available.'
+ };
+ const safe=new Error(messages[error?.code]||'Attendance could not be saved. Please reload and try again.');
+ safe.code=error?.code;
+ return safe;
+}
 const demoStorageKey='attendance-demo-state-v2';
 if(demo){
   try{const saved=JSON.parse(localStorage.getItem(demoStorageKey)||'null');if(saved){for(const key of ['students','subjects','lectures','attendance','timetable','leaves','schedule_exceptions','settings_rows'])if(Array.isArray(saved[key]))demoState[key]=saved[key];}}
@@ -475,8 +489,8 @@ export const DB={
   },
 
   async saveLecture(meta,statuses){
-    const u=await this.user();
     if(demo){
+      const u=await this.user();
       if(meta.schedule_slot_id&&await this.findScheduledLecture(meta.lecture_date,meta.schedule_slot_id)){
         const error=new Error('Attendance has already been taken for this timetable slot.');
         error.code='23505';
@@ -487,14 +501,20 @@ export const DB={
       statuses.forEach(x=>demoState.attendance.push({id:uid(),lecture_id:lecture.id,student_id:x.student_id,status:x.status,marked_at:new Date().toISOString(),updated_at:new Date().toISOString()}));
       return lecture;
     }
-    const lecture=check(await client.from('lectures').insert({...meta,created_by:u.id}).select().single());
     try{
-      check(await client.from('attendance').insert(statuses.map(x=>({...x,lecture_id:lecture.id}))));
-    }catch(e){
-      await client.from('lectures').delete().eq('id',lecture.id);
-      throw e;
+      return check(await client.rpc('save_attendance_transaction',{
+        p_lecture_id:null,
+        p_subject_id:meta.subject_id,
+        p_lecture_date:meta.lecture_date,
+        p_lecture_number:meta.lecture_number,
+        p_section:meta.section,
+        p_section_id:meta.section_id,
+        p_schedule_slot_id:meta.schedule_slot_id||null,
+        p_attendance:statuses
+      }));
+    }catch(error){
+      throw attendanceSaveError(error);
     }
-    return lecture;
   },
 
   async updateLecture(id,meta,statuses){
@@ -513,8 +533,20 @@ export const DB={
       });
       return;
     }
-    check(await client.from('lectures').update({...meta,updated_at:new Date().toISOString()}).eq('id',id));
-    check(await client.from('attendance').upsert(statuses.map(x=>({...x,lecture_id:id,updated_at:new Date().toISOString()})),{onConflict:'lecture_id,student_id'}));
+    try{
+      return check(await client.rpc('save_attendance_transaction',{
+        p_lecture_id:id,
+        p_subject_id:meta.subject_id,
+        p_lecture_date:meta.lecture_date,
+        p_lecture_number:meta.lecture_number,
+        p_section:meta.section,
+        p_section_id:meta.section_id,
+        p_schedule_slot_id:meta.schedule_slot_id||null,
+        p_attendance:statuses
+      }));
+    }catch(error){
+      throw attendanceSaveError(error);
+    }
   },
 
   async deleteLecture(id){
